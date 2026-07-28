@@ -16,7 +16,8 @@ import type { LngLat } from '@mindful/core';
 import { formatDuration } from '../ui/index.js';
 
 import { EPSILONS, estimeradBaslinjeS, type Epsilon } from './api.js';
-import { DEBOUNCE_MS, sök, type Plats } from './geokod.js';
+import { DEBOUNCE_MS, sök, varJagÄr, type Plats } from './geokod.js';
+import { ärVirtuellResa } from '../resa/index.js';
 import type { PlanMode } from './types.js';
 
 /** Slingans och utsvepets budget. Under en kvart är det ingen tur; över en dag ingen app. */
@@ -69,8 +70,23 @@ export function PlanSheet({ från, laddar, fel, onPlanera, onRensaFel, onStäng 
   const [steg, sättSteg] = useState(1);          // ε = 0.35, mitten
   const [minuter, sättMinuter] = useState<number>(MINUTER.start);
   const [riktning, sättRiktning] = useState(0);
+  /** Ortnamnet för där resan börjar. Bara virtuell resa — i bilen vet man var man är. */
+  const [avreseort, sättAvreseort] = useState<string | null>(null);
 
   const senaste = useRef<AbortController | null>(null);
+
+  // Den virtuella resans position är osynlig och står kvar där förra resan slutade —
+  // planerar man vidare från Kivik ska det STÅ Kivik, annars är omvägsbudgeten en gåta
+  // (skarpt fall: "högst 30 min extra till Åhus" — självklart först när avreseorten
+  // syns). Ett anrop per ark-öppning, och raden uteblir hellre än väntas på.
+  useEffect(() => {
+    if (!ärVirtuellResa() || !från) return;
+    const styrning = new AbortController();
+    varJagÄr(från, styrning.signal)
+      .then((namn) => { if (namn) sättAvreseort(namn); })
+      .catch(() => { /* raden är en artighet */ });
+    return () => { styrning.abort(); };
+  }, [från]);
 
   // Photon, 350 ms efter att fingret slutat röra sig. Varje ny fråga avbryter den förra:
   // ett svar på en fråga användaren redan skrivit över är brus, inte data.
@@ -153,6 +169,9 @@ export function PlanSheet({ från, laddar, fel, onPlanera, onRensaFel, onStäng 
 
         {läge === 'ab' && (
           <>
+            {avreseort && (
+              <p className="viskning plan__rad">{`Reser från ${avreseort}.`}</p>
+            )}
             <input
               className="falt"
               type="search"

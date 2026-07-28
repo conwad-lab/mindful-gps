@@ -9,9 +9,12 @@
  *   · `lang=default`    — `lang=sv` ger HTTP 400. Photon kan inte svenska, och det gör
  *                         ingenting: ortnamnen i Sverige ÄR svenska i OSM.
  *
- * Reverse-geokodning görs inte här och inte under körning. Vägnamn kommer ur ruttmotorns
- * manövrar (`streetRef`), aldrig ur en geokodare — Nominatims policy stryper återkommande
- * skript till 4 anrop i minuten, och en enda aktiv förare bryter mot den.
+ * Reverse-geokodning görs inte under körning. Vägnamn kommer ur ruttmotorns manövrar
+ * (`streetRef`), aldrig ur en geokodare — Nominatims policy stryper återkommande skript
+ * till 4 anrop i minuten, och en enda aktiv förare bryter mot den.
+ *
+ * Undantaget är `varJagÄr`: ETT anrop när planeringsarket öppnas på en virtuell resa,
+ * mot Photon (nyckellös, byggd för last), aldrig i loop. Se motiveringen vid funktionen.
  */
 
 import type { LngLat } from '@mindful/core';
@@ -120,4 +123,34 @@ export async function sök(
   }
 
   return platser;
+}
+
+/**
+ * Var står jag? Ortens namn för en punkt — den virtuella resans fråga, inte bilens.
+ *
+ * I en bil vet man var man är; på en virtuell resa är positionen OSYNLIG, och den står
+ * kvar där förra resan slutade. Skarpt fall: operatören planerade "Åhus" och fick en
+ * omvägsbudget på högst 30 minuter — obegripligt från Lund, självklart från Kivik, där
+ * förra resan gick i mål. En rad med ortnamnet gör tillståndet synligt i stället för
+ * överraskande.
+ *
+ * `null` vid varje slags miss: raden är en artighet, aldrig något planeringen väntar på.
+ */
+export async function varJagÄr(at: LngLat, signal?: AbortSignal): Promise<string | null> {
+  try {
+    const url = new URL('https://photon.komoot.io/reverse');
+    url.searchParams.set('lon', at[0].toFixed(5));
+    url.searchParams.set('lat', at[1].toFixed(5));
+    url.searchParams.set('lang', 'default');
+
+    const svar = await fetch(url, signal ? { signal } : {});
+    if (!svar.ok) return null;
+
+    const kropp = (await svar.json()) as PhotonSvar;
+    const p = kropp.features?.[0]?.properties;
+    if (!p) return null;
+    return p.city ?? p.name ?? null;
+  } catch {
+    return null;
+  }
 }
