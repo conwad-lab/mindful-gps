@@ -1,8 +1,14 @@
 /**
  * "Vart?" — adressökningen.
  *
- * Photon (photon.komoot.io), och inte Nominatim: Nominatims usage policy förbjuder
- * uttryckligen autocomplete. Photon är byggt för det och är nyckellöst.
+ * Photon (photon.komoot.io) FÖRST, och inte Nominatim: Nominatims usage policy
+ * förbjuder uttryckligen autocomplete. Photon är byggt för det och är nyckellöst.
+ *
+ * Nominatim finns ändå här — som RESERV när Photon ligger nere (skarpt fall
+ * 2026-07-28: photon.komoot.io vägrade TCP-anslutningar globalt i timmar, och appens
+ * enda geokodare var en enpunktstjänst). Reserven är byggd för att hålla sig inom
+ * Nominatims policy: den fyrar bara när Photon redan misslyckats med en FÄRDIG fråga
+ * (aldrig per tangenttryckning), och en strypare garanterar >1 s mellan anropen.
  *
  * Två fällor, båda skarpt verifierade:
  *   · `countrycode=se`  — SINGULAR. `countrycodes` ger HTTP 400.
@@ -77,8 +83,68 @@ function beskrivningAv(p: PhotonEgenskaper, namn: string): string {
 }
 
 /**
+ * Nominatims absoluta tak är 1 anrop/sekund. Strypningen är global för modulen: den
+ * gäller sök OCH reverse tillsammans, för det är samma tjänst som räknar.
+ */
+let nominatimSenast = 0;
+
+async function vänteläge(signal?: AbortSignal): Promise<void> {
+  const kvar = nominatimSenast + 1_100 - Date.now();
+  if (kvar > 0) await new Promise((r) => setTimeout(r, kvar));
+  if (signal?.aborted) throw new DOMException('avbruten', 'AbortError');
+  nominatimSenast = Date.now();
+}
+
+interface NominatimTräff {
+  readonly place_id?: number;
+  readonly name?: string;
+  readonly display_name?: string;
+  readonly lon?: string;
+  readonly lat?: string;
+}
+
+/** Reserven. Bara hela frågor, bara efter att Photon svikit, aldrig i debounce-takt. */
+async function sökNominatim(q: string, signal?: AbortSignal): Promise<Plats[]> {
+  await vänteläge(signal);
+
+  const url = new URL('https://nominatim.openstreetmap.org/search');
+  url.searchParams.set('q', q);
+  url.searchParams.set('format', 'jsonv2');
+  url.searchParams.set('countrycodes', 'se');   // ⚠️ PLURAL här — tvärtom mot Photon.
+  url.searchParams.set('limit', String(ANTAL));
+
+  const svar = await fetch(url, signal ? { signal } : {});
+  if (!svar.ok) throw new Error('Sökningen svarade inte.');
+
+  const träffar = (await svar.json()) as NominatimTräff[];
+  const platser: Plats[] = [];
+
+  for (const t of träffar) {
+    const lon = Number(t.lon);
+    const lat = Number(t.lat);
+    const namn = t.name?.trim() ?? '';
+    if (!namn || !Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+
+    const resten = (t.display_name ?? '')
+      .split(',')
+      .map((d) => d.trim())
+      .filter((d) => d && d !== namn && d !== 'Sverige');
+
+    platser.push({
+      id: `nom-${t.place_id ?? platser.length}`,
+      namn,
+      beskrivning: resten.slice(0, 2).join(', '),
+      at: [lon, lat],
+    });
+  }
+  return platser;
+}
+
+/**
  * Sök. `nära` är valfri och biasar träffarna mot där man står — det är nästan alltid
  * rätt: man söker på "handelsboden", inte på "handelsboden i Kalmar".
+ *
+ * Photon först; sviker den (nätfel eller felstatus) tar Nominatim-reserven frågan.
  */
 export async function sök(
   fråga: string,
@@ -88,6 +154,19 @@ export async function sök(
   const q = fråga.trim();
   if (q.length < 2) return [];
 
+  try {
+    return await sökPhoton(q, nära, signal);
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') throw e;
+    return sökNominatim(q, signal);
+  }
+}
+
+async function sökPhoton(
+  q: string,
+  nära?: LngLat,
+  signal?: AbortSignal,
+): Promise<Plats[]> {
   const url = new URL(PHOTON);
   url.searchParams.set('q', q);
   url.searchParams.set('lang', 'default');
@@ -144,12 +223,32 @@ export async function varJagÄr(at: LngLat, signal?: AbortSignal): Promise<strin
     url.searchParams.set('lang', 'default');
 
     const svar = await fetch(url, signal ? { signal } : {});
-    if (!svar.ok) return null;
+    if (!svar.ok) throw new Error(String(svar.status));
 
     const kropp = (await svar.json()) as PhotonSvar;
     const p = kropp.features?.[0]?.properties;
-    if (!p) return null;
-    return p.city ?? p.name ?? null;
+    return p ? (p.city ?? p.name ?? null) : null;
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') return null;
+  }
+
+  // Reserven, samma strypare som söket. Raden är fortfarande bara en artighet.
+  try {
+    await vänteläge(signal);
+    const url = new URL('https://nominatim.openstreetmap.org/reverse');
+    url.searchParams.set('lon', at[0].toFixed(5));
+    url.searchParams.set('lat', at[1].toFixed(5));
+    url.searchParams.set('format', 'jsonv2');
+
+    const svar = await fetch(url, signal ? { signal } : {});
+    if (!svar.ok) return null;
+
+    const kropp = (await svar.json()) as {
+      name?: string;
+      address?: { city?: string; town?: string; village?: string };
+    };
+    return kropp.address?.city ?? kropp.address?.town ?? kropp.address?.village
+      ?? kropp.name ?? null;
   } catch {
     return null;
   }
