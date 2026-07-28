@@ -29,7 +29,7 @@
  *    och den dagen någon försöker vill vi att det ska vara omöjligt, inte olämpligt.
  */
 
-import { decode6, projectOnPolyline, type LngLat, type Polyline6 } from '@mindful/core';
+import { decode6, length, projectOnPolyline, type LngLat, type Polyline6 } from '@mindful/core';
 
 import {
   MAX_SIM_FART, pausaSim, simFartMs, sättSimFart, återupptaSim,
@@ -56,6 +56,15 @@ const NÄRA_M = 150;
  */
 const MAX_STOPP_MS = 120_000;
 
+/**
+ * Så nära spårets slut resan räknar sig som framme.
+ *
+ * 100 m: sista fixen landar på spårets slutpunkt plus GPS-brus, och projektionen mot
+ * ruttens polyline kan skilja några meter från simspårets. Snävare hade riskerat en
+ * resa som står 30 m från målet och aldrig blir klar — utan att något ser fel ut.
+ */
+const FRAMME_M = 100;
+
 /** Tempot resan börjar i, sekunder mellan curiosa. */
 export const TEMPO_START_S = 90;
 export const TEMPO_MIN_S = 15;
@@ -66,6 +75,16 @@ export interface ResaHändelser {
   readonly onCuriosum: (c: Curiosum, nummer: number, av: number) => void;
   /** Resan rullar igen — bladet kan stängas. */
   readonly onFortsätter: () => void;
+  /**
+   * Spåret tog slut — resan är framme och avslutar sig själv.
+   *
+   * ⛔ BARA resläget. I en riktig körning avgör föraren när turen är slut ("Håll in
+   *    för att avsluta") — appen gissar aldrig åt en människa som sitter i en bil.
+   *    En virtuell resa har inget sådant omdöme att respektera: när spåret är slut
+   *    finns det bokstavligen ingenting mer som kan hända, och en skärm som står och
+   *    väntar på ett håll-in-tryck är en resa som glömde gå i mål.
+   */
+  readonly onFramme: () => void;
 }
 
 export class VirtuellResa {
@@ -73,12 +92,15 @@ export class VirtuellResa {
   readonly #recorder: Recorder;
   readonly #händelser: ResaHändelser;
   readonly #spår: readonly LngLat[];
+  readonly #spårLängdM: number;
   readonly #curiosa: readonly Curiosum[];
 
   #tempoS: number;
   #index = 0;
   #alongM = 0;
   #stannad = false;
+  /** Framme-händelsen får bara fyras EN gång — avslutet river resan asynkront. */
+  #framme = false;
   #vakt: ReturnType<typeof setTimeout> | null = null;
   #avreg: (() => void) | null = null;
 
@@ -93,6 +115,7 @@ export class VirtuellResa {
     this.#geo = geo;
     this.#recorder = recorder;
     this.#spår = decode6(geometry);
+    this.#spårLängdM = length(this.#spår);
     this.#curiosa = curiosa;
     this.#händelser = händelser;
     this.#tempoS = tempoS;
@@ -174,6 +197,15 @@ export class VirtuellResa {
         return;
       }
       break;
+    }
+
+    // Spårets slut, och inget curiosum tog fixen före oss (ett stopp vid målet vinner:
+    // det checkas ovan och returnerar). Ligger vi stannade vid ett curiosum kommer vi
+    // inte hit alls — och simulatorn skickar en ny sista fix efter `fortsätt()`, så
+    // framme-checken får alltid ett andra försök.
+    if (!this.#framme && this.#alongM >= this.#spårLängdM - FRAMME_M) {
+      this.#framme = true;
+      this.#händelser.onFramme();
     }
   }
 

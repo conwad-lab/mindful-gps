@@ -531,8 +531,10 @@ async function startaResa(set: Sätt, get: Hämta, geometry: Polyline6): Promise
   const val = resaOptionsFromUrl();
   if (!val || !geo || !motor) return;
 
+  // Även en resa UTAN curiosa är en resa: den snabbspolar till målet (utan stopp
+  // sätter takten maxfart direkt) och avslutar sig själv där. Utan det här hade en
+  // sträcka utan sevärdheter blivit en tur man måste hålla in en knapp för att lämna.
   const curiosa = await curiosaLängs(geometry);
-  if (curiosa.length === 0) return;
 
   // Komponera stoppens texter nu, medan resan rullar mot det första.
   värmCuriosa(curiosa);
@@ -547,6 +549,8 @@ async function startaResa(set: Sätt, get: Hämta, geometry: Polyline6): Promise
       });
     },
     onFortsätter: () => { set({ resaLäser: false }); },
+    // Samma väg som håll-in-knappen: turen bokförs i nätet på exakt samma sätt.
+    onFramme: () => { void get().avslutaNav(true); },
   }, val.tempoS);
 
   resa.start();

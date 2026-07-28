@@ -195,7 +195,11 @@ att sträckan fram till nästa sevärdhet ska ta ungefär den tiden. En mil öde
 går fort, tätt mellan runstenarna går långsamt. Reglaget ändrar tempot mitt i
 resan och visar `3 av 11`.
 
-Planera som vanligt ("Vart?" → Kör mig dit → Kör) — resan tar över därifrån.
+Planera som vanligt ("Vart?" → Kör mig dit → Kör) — resan tar över därifrån,
+och när spåret tar slut avslutar den sig själv: turen bokförs i nätet och
+slutskärmen visas utan något håll-in-tryck. (Bara i resläget — i en riktig
+körning avgör föraren själv när turen är slut.) En rutt utan curiosa
+snabbspolas direkt till målet.
 
 **Doktringräns.** Appen berättar annars aldrig oombett (CONTRACT §6): ett blad
 som slår upp sig självt i 90 km/h är en olycka. Autoläsningen kan därför bara
