@@ -44,6 +44,28 @@ export function förhandshämta(polyline: string): void {
 }
 
 /**
+ * Serverrösten är AVSTÄNGD — inte trasig.
+ *
+ * Servern svarar 501 när `ELEVENLABS_API_KEY` saknas. Det är ett STABILT tillstånd, till
+ * skillnad från en täckningsskugga: frågar vi igen om tio sekunder är svaret detsamma.
+ * Anroparen får därför sluta fråga och gå direkt på webbläsarrösten — vilket dessutom är
+ * enda sättet att hålla iOS användargest intakt, se `talSyntes.ts`.
+ */
+export class RöstEjPåslagenError extends Error {
+  constructor(meddelande: string) {
+    super(meddelande);
+    this.name = 'RöstEjPåslagenError';
+  }
+}
+
+let röstenÄrAv = false;
+
+/** Har servern redan sagt att rösten är avstängd? Då är den det resten av sessionen. */
+export function serverRöstenÄrAv(): boolean {
+  return röstenÄrAv;
+}
+
+/**
  * Rösten som en spelbar url (en Blob-URL). Anroparen äger den och ska återkalla den med
  * `URL.revokeObjectURL` när den spelat klart — annars läcker minne, en mp3 i taget.
  */
@@ -51,6 +73,10 @@ export async function hämtaRöst(id: number, signal?: AbortSignal): Promise<str
   const res = await fetch(`${API}/api/sight/${id}/rost`, signal ? { signal } : {});
   if (!res.ok) {
     const data = await res.json().catch(() => ({})) as { error?: string };
+    if (res.status === 501) {
+      röstenÄrAv = true;
+      throw new RöstEjPåslagenError(data.error ?? 'Uppläsning är inte påslagen.');
+    }
     throw new Error(data.error ?? 'Kunde inte läsa upp just nu.');
   }
   return URL.createObjectURL(await res.blob());

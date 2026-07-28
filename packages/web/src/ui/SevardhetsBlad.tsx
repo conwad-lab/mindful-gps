@@ -7,13 +7,22 @@
  *
  * Rösten spelas genom ETT `<audio>`-element (aldrig Web Audio — iOS ringknapp tystar det
  * senare). Blob-URL:en återkallas när en ny spelas eller bladet stängs.
+ *
+ * Två röster, i den här ordningen:
+ *   1. Servern (ElevenLabs) — den goda rösten, när nyckeln är satt.
+ *   2. Webbläsarens talsyntes — gratis fallback, se `talSyntes.ts` och CONTRACT §6.
+ * Vilken som ljuder står i klartext under knappen. Att låtsas att robotrösten vore den
+ * goda vore att ljuga om en sak användaren hör med egna öron.
  */
 
 import { useEffect, useRef, useState } from 'react';
 
 import type { SevärdhetsTryck } from '../map/index.js';
 
-import { hämtaBerättelse, hämtaRöst, type Berättelse } from './sevardhetBerattelse.js';
+import {
+  hämtaBerättelse, hämtaRöst, RöstEjPåslagenError, serverRöstenÄrAv, type Berättelse,
+} from './sevardhetBerattelse.js';
+import { avbrytLokalt, finnsTalsyntes, läsUppLokalt } from './talSyntes.js';
 
 interface Props {
   readonly sevärdhet: SevärdhetsTryck;
@@ -39,6 +48,8 @@ export function SevardhetsBlad({ sevärdhet, onStäng }: Props) {
   const [spelar, setSpelar] = useState(false);
   const [röstFel, setRöstFel] = useState<string | null>(null);
   const [hämtarRöst, setHämtarRöst] = useState(false);
+  /** Är det webbläsarrösten som ljuder just nu? Styr både stoppknappen och raden under. */
+  const [lokalRöst, setLokalRöst] = useState(false);
 
   const audio = useRef<HTMLAudioElement | null>(null);
   const blobUrl = useRef<string | null>(null);
@@ -59,7 +70,9 @@ export function SevardhetsBlad({ sevärdhet, onStäng }: Props) {
     setFel(null);
     setRöstFel(null);
     setSpelar(false);
+    setLokalRöst(false);
     audio.current?.pause();
+    avbrytLokalt();
     släppLjud();
 
     hämtaBerättelse(sevärdhet.id, styrning.signal)
@@ -70,14 +83,46 @@ export function SevardhetsBlad({ sevärdhet, onStäng }: Props) {
         setStatus('fel');
       });
 
-    return () => { styrning.abort(); audio.current?.pause(); släppLjud(); };
+    return () => {
+      styrning.abort();
+      audio.current?.pause();
+      avbrytLokalt();
+      släppLjud();
+    };
   }, [sevärdhet.id]);
+
+  /**
+   * Webbläsarrösten. SYNKRON — anropas direkt i knapptrycket, aldrig efter ett `await`,
+   * annars vägrar iOS ljuda (se `talSyntes.ts`).
+   */
+  function läsUppLokaltNu(text: string): void {
+    const startade = läsUppLokalt(text, {
+      onSlut: () => { setSpelar(false); setLokalRöst(false); },
+      onFel: (m) => { setSpelar(false); setLokalRöst(false); setRöstFel(m); },
+    });
+    if (startade) {
+      setSpelar(true);
+      setLokalRöst(true);
+    } else {
+      setRöstFel('Den här webbläsaren har ingen röst att låna ut.');
+    }
+  }
 
   async function läsUpp(): Promise<void> {
     const el = audio.current;
     if (!el) return;
 
-    if (spelar) { el.pause(); return; }
+    if (spelar) {
+      if (lokalRöst) { avbrytLokalt(); setSpelar(false); setLokalRöst(false); }
+      else el.pause();
+      return;
+    }
+
+    const text = berättelse?.text ?? '';
+
+    // Servern har redan sagt att rösten är avstängd. Fråga inte igen — gå direkt på
+    // webbläsarrösten, i samma knapptryck, medan användargesten fortfarande gäller.
+    if (serverRöstenÄrAv()) { läsUppLokaltNu(text); return; }
 
     // Har vi redan mp3:en? Spela om den. Annars hämta.
     if (blobUrl.current) { void el.play(); return; }
@@ -90,7 +135,10 @@ export function SevardhetsBlad({ sevärdhet, onStäng }: Props) {
       el.src = url;
       await el.play();
     } catch (e: unknown) {
-      setRöstFel(e instanceof Error ? e.message : 'Kunde inte läsa upp.');
+      // Serverrösten teg. Fallback-vägen är komplett i sig själv — säg inte "fel" om
+      // användaren ändå får höra berättelsen.
+      if (e instanceof RöstEjPåslagenError && finnsTalsyntes()) läsUppLokaltNu(text);
+      else setRöstFel(e instanceof Error ? e.message : 'Kunde inte läsa upp.');
     } finally {
       setHämtarRöst(false);
     }
@@ -135,6 +183,10 @@ export function SevardhetsBlad({ sevärdhet, onStäng }: Props) {
           >
             {hämtarRöst ? 'Hämtar röst …' : spelar ? 'Tyst' : 'Läs upp'}
           </button>
+
+          {spelar && lokalRöst && (
+            <p className="viskning">Webbläsarens röst.</p>
+          )}
 
           {röstFel && <p className="viskning">{röstFel}</p>}
         </>

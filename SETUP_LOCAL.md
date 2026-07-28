@@ -53,9 +53,33 @@ I `.env`:
   Håll nyckeln TOM tills kontot är på Starter+ — med en nyckel satt kastar
   `/rost` 500 "internt fel" i stället för det ärliga 501:et.
 
-  Gratis alternativ om uppläsning ska finnas utan kostnad: webbläsarens egen
-  `speechSynthesis` (svensk röst finns inbyggd i macOS/iOS), som ersätter
-  server-TTS:en helt.
+  **Gratis röst finns redan inbyggd** — se nedan. Ingen nyckel behövs för att
+  höra berättelserna.
+
+## Gratis uppläsning: webbläsarens talsyntes
+
+Fork-tillägg (`packages/web/src/ui/talSyntes.ts`). Svarar servern 501 —
+uppläsning inte påslagen — läses berättelsen i stället upp av webbläsarens
+egen röst (Alva på macOS/iOS för svenska). Kostar ingenting.
+
+Rollfördelningen följer CONTRACT §6: ElevenLabs är primär när nyckeln är satt,
+talsyntesen är **fallback**, och fallback-vägen är komplett i sig själv. Under
+knappen står "Webbläsarens röst." när det är robotrösten som ljuder — appen
+låtsas aldrig att den är den goda rösten.
+
+Tre detaljer specen kräver, och som implementationen därför har:
+- **Watchdog** — kommer inte `onend` inom estimerad tid × 2 avbryts motorn.
+  Talsyntesen hänger sig på iOS om appen bakgrundas mitt i en mening.
+- **`getVoices()` ljuger** — röstlistan är tom i Chrome tills `voiceschanged`
+  kommit. Cachen värms vid import så att uppläsningen kan startas SYNKRONT i
+  knapptrycket; iOS kräver en användargest, och ett `await` bryter den.
+- **`sv-SE`-whitelist** med normalisering av `sv_SE` → `sv-SE`.
+
+Servern frågas bara en gång per session: efter ett 501-svar går knappen direkt
+på webbläsarrösten (`serverRöstenÄrAv()` i `sevardhetBerattelse.ts`).
+
+Texten talas mening för mening som köade utterances — Chrome tystnar mitt i
+utterances längre än ~15 s, och en tvåmeningarsberättelse ligger över det.
 
 ## 2. OSM-data (engångs, ~784 MB)
 
