@@ -179,6 +179,37 @@ npm run dev   # web 5202 · server 8161 · Valhalla 8002 · Postgres 5435
 
 Virtuell resa utan bil: `http://localhost:5202/?sim=1&start=13.191,55.704&takt=40`
 
+## Virtuell resa (curiosa-tempo)
+
+Fork-tillägg (`packages/web/src/resa/`). Res sträckan hemifrån: landskapet drar
+förbi på kartan, och vid varje sevärdhet **stannar** resan, berättar och
+fortsätter sedan.
+
+```
+http://localhost:5202/?sim=1&resa=1&curiosa=45&start=13.191,55.704
+```
+
+`curiosa=N` är **sekunder mellan curiosa** — inte km/h. Tempot styr hur ofta det
+händer något; appen räknar själv ut hur mycket väggklockan ska komprimeras för
+att sträckan fram till nästa sevärdhet ska ta ungefär den tiden. En mil ödemark
+går fort, tätt mellan runstenarna går långsamt. Reglaget ändrar tempot mitt i
+resan och visar `3 av 11`.
+
+Planera som vanligt ("Vart?" → Kör mig dit → Kör) — resan tar över därifrån.
+
+**Doktringräns.** Appen berättar annars aldrig oombett (CONTRACT §6): ett blad
+som slår upp sig självt i 90 km/h är en olycka. Autoläsningen kan därför bara
+tändas av resläget, och resläget kräver `?sim=1` — en riktig körning kan inte nå
+det, oavsett URL.
+
+Urvalet (`POST /api/sight/langs`) är tyngst-först med **minst 2 km mellan
+curiosa**. Mätt på Lund → Simrishamn utan spärren: 9 av 12 låg inom de första
+4,4 km — fyra namnlösa runstenar inom 200 m — och sedan tystnad i fem mil. Med
+spärren: 12 jämnt fördelade över 10 mil, 10 av 12 med namn.
+
+Kräver OpenRouter-krediter: utan berättelse hoppar resan vidare direkt (den
+stannar aldrig vid en sten den inte kan berätta om).
+
 ## Kända avvikelser mot upstream-dokumentationen
 
 - `npm run bench` är trasigt i upstream (`bench/run.ts` finns inte).

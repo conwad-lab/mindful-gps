@@ -85,3 +85,23 @@ export function sättSimFart(geo: GeoProvider, fart: number): void {
     geo.setTaktMs(SIM_STEG_MS / klamrad);
   }
 }
+
+/**
+ * Pausa respektive återuppta simulatorn utan att tappa positionen.
+ *
+ * Den virtuella resan stannar vid varje curiosum och fortsätter efteråt. Tysta no-op:ar
+ * i skarpt läge — verkligheten går inte att pausa, och en app som trodde det skulle stå
+ * still på skärmen medan bilen rullade vidare.
+ */
+export function pausaSim(geo: GeoProvider): void {
+  if (geo instanceof SimGeoProvider) geo.stop();
+}
+
+export function återupptaSim(geo: GeoProvider): void {
+  if (geo instanceof SimGeoProvider) geo.återuppta();
+}
+
+/** Farten längs spåret, m/s. 0 i skarpt läge — där kommer farten ur fixarna. */
+export function simFartMs(geo: GeoProvider): number {
+  return geo instanceof SimGeoProvider ? geo.fartMs : 0;
+}

@@ -18,9 +18,11 @@ import { useEffect, useRef } from 'react';
 import { MapView, type MapHandle, type Tema } from '../map/index.js';
 import { NavScreen } from '../nav/index.js';
 import { PlanFlow } from '../plan/index.js';
+import { ärVirtuellResa } from '../resa/index.js';
 import { isSimulated } from '../sense/index.js';
 import {
-  AfterDriveScreen, HomeScreen, Onboarding, RecordingScreen, SevardhetsBlad, SimReglage,
+  AfterDriveScreen, HomeScreen, Onboarding, RecordingScreen, ResaReglage, SevardhetsBlad,
+  SimReglage,
 } from '../ui/index.js';
 
 import { kartan, minnet, recordern, useApp } from './state.js';
@@ -39,6 +41,9 @@ const TEMA: Tema = window.matchMedia('(prefers-color-scheme: dark)').matches
 /** Avgörs en gång, vid start: `?sim=1` byter aldrig mitt i en session. */
 const SIM = isSimulated();
 
+/** Virtuell resa (`?sim=1&resa=1`). Byter reglaget, och tänder bladets autoläsning. */
+const RESA = ärVirtuellResa();
+
 export function Router() {
   const handtag = useRef<MapHandle>(null);
   const registreraKarta = useApp((s) => s.registreraKarta);
@@ -54,7 +59,7 @@ export function Router() {
       <MapView ref={handtag} tema={TEMA} onSevärdhet={visaSevärdhet} />
       <Skärmar />
       <Blad />
-      {SIM && <SimReglage />}
+      {RESA ? <ResaReglage /> : SIM && <SimReglage />}
       <Felrad />
     </>
   );
@@ -70,6 +75,8 @@ export function Router() {
 function Blad() {
   const valdSevärdhet = useApp((s) => s.valdSevärdhet);
   const stängSevärdhet = useApp((s) => s.stängSevärdhet);
+  const resaLäser = useApp((s) => s.resaLäser);
+  const resaFortsätt = useApp((s) => s.resaFortsätt);
   if (!valdSevärdhet) return null;
 
   return (
@@ -77,6 +84,8 @@ function Blad() {
       key={valdSevärdhet.id}
       sevärdhet={valdSevärdhet}
       onStäng={stängSevärdhet}
+      autoLäs={resaLäser}
+      onUppläst={resaFortsätt}
     />
   );
 }

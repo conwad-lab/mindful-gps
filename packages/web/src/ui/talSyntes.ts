@@ -41,7 +41,20 @@ const VÄNTA_RÖSTER_MS = 3_000;
 
 let svenskRöst: SpeechSynthesisVoice | null = null;
 let vakt: ReturnType<typeof setTimeout> | null = null;
-let avsiktligtAvbrutet = false;
+
+/**
+ * Vilken uppläsning som gäller just nu.
+ *
+ * ⚠️ `speechSynthesis.cancel()` avfyrar `end` på det yttrande som pågick — ASYNKRONT,
+ *    ett tick senare. En bool som sätts före `cancel()` och nollas direkt efteråt hinner
+ *    alltså tillbaka innan händelsen kommer, och den avbrutna uppläsningen rapporterar
+ *    sig som färdig. MÄTT: den virtuella resan hoppade då vidare ett curiosum för varje
+ *    stopp och stängde bladet som just hunnit öppnas.
+ *
+ *    Räknaren löser det utan tidsberoende: varje uppläsning får sitt nummer, och en
+ *    callback vars nummer inte längre är det aktuella är per definition inaktuell.
+ */
+let generation = 0;
 
 /** Finns motorn över huvud taget? Äldre webbläsare och vissa inbäddade vyer saknar den. */
 export function finnsTalsyntes(): boolean {
@@ -102,7 +115,7 @@ export function talar(): boolean {
 /** Avbryt pågående uppläsning. Tyst no-op om ingenting talar. */
 export function avbrytLokalt(): void {
   if (!finnsTalsyntes()) return;
-  avsiktligtAvbrutet = true;
+  generation += 1;          // allt som var på väg är härmed inaktuellt
   släppVakt();
   window.speechSynthesis.cancel();
 }
@@ -131,10 +144,11 @@ export function läsUppLokalt(text: string, händelser: Händelser): boolean {
   const stycken = meningar(text);
   if (stycken.length === 0) return false;
 
-  // En hängd motor från förra uppläsningen tar den här med sig. Städa först.
-  avsiktligtAvbrutet = true;
+  // En hängd motor från förra uppläsningen tar den här med sig. Städa först — och räkna
+  // upp generationen, så att `end` från det vi just avbröt inte rapporteras som ett slut.
+  generation += 1;
+  const min = generation;
   window.speechSynthesis.cancel();
-  avsiktligtAvbrutet = false;
   släppVakt();
 
   stycken.forEach((mening, i) => {
@@ -146,6 +160,7 @@ export function läsUppLokalt(text: string, händelser: Händelser): boolean {
 
     if (i === stycken.length - 1) {
       yttrande.onend = () => {
+        if (min !== generation) return;   // avbruten — inte färdig
         släppVakt();
         händelser.onSlut();
       };
@@ -153,7 +168,7 @@ export function läsUppLokalt(text: string, händelser: Händelser): boolean {
 
     yttrande.onerror = (h) => {
       // `canceled` / `interrupted` är VÅRT eget avbrott — inte ett fel att visa.
-      if (avsiktligtAvbrutet || h.error === 'canceled' || h.error === 'interrupted') return;
+      if (min !== generation || h.error === 'canceled' || h.error === 'interrupted') return;
       släppVakt();
       händelser.onFel('Webbläsarens röst kunde inte läsa upp.');
     };
@@ -166,13 +181,23 @@ export function läsUppLokalt(text: string, händelser: Händelser): boolean {
   const estimatMs = Math.max((text.length / TECKEN_PER_SEKUND) * 1000, MINSTA_VAKTTID_MS);
   vakt = setTimeout(() => {
     vakt = null;
+    if (min !== generation) return;
     if (!window.speechSynthesis.speaking) return;
-    avsiktligtAvbrutet = true;
+    generation += 1;
     window.speechSynthesis.cancel();
     händelser.onSlut();
   }, estimatMs * 2);
 
   return true;
 }
+
+/**
+ * ⚠️ Talsyntesens kö överlever en sidladdning.
+ *
+ * MÄTT under en virtuell resa: laddade man om mitt i en uppläsning fortsatte den gamla
+ * rösten att läsa in i den nya sidan, om en plats man inte längre var på väg till.
+ * Kön är webbläsarens, inte dokumentets — alltså städar vi den när modulen vaknar.
+ */
+if (finnsTalsyntes()) window.speechSynthesis.cancel();
 
 värmRöster();

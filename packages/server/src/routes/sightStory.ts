@@ -179,6 +179,79 @@ export function sightStoryRoutes(app: FastifyInstance, opts: { deps: { pool: Poo
     };
   });
 
+  /**
+   * POST /api/sight/langs  { polyline, radiusM?, max? }
+   *   → { curiosa: [{ id, kind, name, at, alongM }] }  i den ordning man passerar dem
+   *
+   * Sevärdheterna längs en rutt. Samma urval som `prefetch` — tunga sorter, tyngst
+   * först, samma tak — men svaret bär `alongM`: sträckan in på rutten där de ligger.
+   *
+   * ⛔ Den virtuella resan är enda anroparen. Under en riktig körning ritas prickarna på
+   *    kartan och föraren trycker själv; en lista över vad som kommer härnäst vore
+   *    början på en app som tjatar (tystnadsdoktrinen, CONTRACT §6).
+   */
+  app.post('/sight/langs', async (req) => {
+    const body = (req.body ?? {}) as { polyline?: unknown; radiusM?: unknown; max?: unknown };
+    if (typeof body.polyline !== 'string') throw new BadRequest('polyline saknas');
+
+    const coords = decode6(body.polyline);
+    if (coords.length < 2) return { curiosa: [] };
+
+    const radie = typeof body.radiusM === 'number' ? body.radiusM : 1200;
+    const max = typeof body.max === 'number' ? body.max : 12;
+    const wkt = `LINESTRING(${coords.map(([lon, lat]) => `${lon} ${lat}`).join(',')})`;
+
+    const res = await pool.query<{
+      id: string; kind: string; name: string; lon: number; lat: number; along_m: number;
+    }>(
+      `WITH linje AS (SELECT ST_GeomFromText($1, 4326) AS g)
+       SELECT s.id, s.kind, s.name, ST_X(s.at) AS lon, ST_Y(s.at) AS lat,
+              ST_LineLocatePoint(linje.g, s.at) * ST_Length(linje.g::geography) AS along_m
+         FROM sight s, linje
+        WHERE s.kind = ANY($2::text[])
+          AND ST_DWithin(
+                s.at::geography,
+                ST_Simplify(linje.g, 0.0008)::geography,
+                $3)`,
+      [wkt, TUNGA_SORTER as unknown as string[], radie],
+    );
+
+    // Tyngst först, med namn före namnlös vid lika vikt: en namngiven runsten går att
+    // berätta om, en namnlös ger "jag hittar inte mycket om den här platsen".
+    const rankade = [...res.rows].sort((a, b) => {
+      const va = SIGHT_WEIGHT[a.kind as SightKind] + (a.name ? 0.001 : 0);
+      const vb = SIGHT_WEIGHT[b.kind as SightKind] + (b.name ? 0.001 : 0);
+      return vb - va;
+    });
+
+    // Sedan glest, inte tätt. MÄTT på Lund → Simrishamn: utan spärren låg 9 av 12
+    // curiosa inom de första 4,4 km — fyra namnlösa runstenar inom 200 m av varandra —
+    // och sedan tystnad i fem mil. En resa ska andas jämnt; ett stopp var annan
+    // kilometer är den glesaste täthet som fortfarande känns som en resa och inte som
+    // en lista.
+    const MELLANRUM_M = 2000;
+    const valda: typeof rankade = [];
+    for (const r of rankade) {
+      if (valda.length >= max) break;
+      if (valda.some((v) => Math.abs(v.along_m - r.along_m) < MELLANRUM_M)) continue;
+      valda.push(r);
+    }
+
+    // Tillbaka till VÄGENS ordning: en resa passerar dem i den ordning de ligger, inte
+    // i intresseordning.
+    valda.sort((a, b) => a.along_m - b.along_m);
+
+    return {
+      curiosa: valda.map((r) => ({
+        id: Number(r.id),
+        kind: r.kind as SightKind,
+        name: r.name,
+        at: [r.lon, r.lat] as LngLat,
+        alongM: r.along_m,
+      })),
+    };
+  });
+
   app.get('/sight/:id/rost', async (req, reply) => {
     const id = idAv((req.params as { id?: unknown }).id);
 

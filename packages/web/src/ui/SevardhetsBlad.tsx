@@ -27,6 +27,16 @@ import { avbrytLokalt, finnsTalsyntes, läsUppLokalt } from './talSyntes.js';
 interface Props {
   readonly sevärdhet: SevärdhetsTryck;
   readonly onStäng: () => void;
+  /**
+   * Läs upp av dig själv, utan att någon bett om det.
+   *
+   * ⛔ Sätts BARA av den virtuella resan (`?sim=1&resa=1`). I bilen gäller
+   *    tystnadsdoktrinen utan undantag: ett blad som läser upp sig självt i 90 km/h är
+   *    en olycka, inte en finess. I soffan är det tvärtom hela poängen.
+   */
+  readonly autoLäs?: boolean;
+  /** Uppläsningen är klar — resan kan rulla vidare. */
+  readonly onUppläst?: () => void;
 }
 
 type Status = 'laddar' | 'klar' | 'fel';
@@ -40,7 +50,7 @@ function värd(url: string): string {
   }
 }
 
-export function SevardhetsBlad({ sevärdhet, onStäng }: Props) {
+export function SevardhetsBlad({ sevärdhet, onStäng, autoLäs = false, onUppläst }: Props) {
   const [status, setStatus] = useState<Status>('laddar');
   const [berättelse, setBerättelse] = useState<Berättelse | null>(null);
   const [fel, setFel] = useState<string | null>(null);
@@ -53,6 +63,17 @@ export function SevardhetsBlad({ sevärdhet, onStäng }: Props) {
 
   const audio = useRef<HTMLAudioElement | null>(null);
   const blobUrl = useRef<string | null>(null);
+  /** Vilken sevärdhet vi redan startat autoläsningen för. Skyddar mot dubbelkörning. */
+  const autoläst = useRef<number | null>(null);
+  /** Resan får bara knuffas vidare EN gång per curiosum. */
+  const rapporterat = useRef<number | null>(null);
+
+  /** Säg till resan att vi är klara här. Idempotent per sevärdhet. */
+  const klart = (): void => {
+    if (!autoLäs || rapporterat.current === sevärdhet.id) return;
+    rapporterat.current = sevärdhet.id;
+    onUppläst?.();
+  };
 
   const släppLjud = (): void => {
     if (blobUrl.current) {
@@ -92,19 +113,38 @@ export function SevardhetsBlad({ sevärdhet, onStäng }: Props) {
   }, [sevärdhet.id]);
 
   /**
+   * Virtuell resa: bladet läser upp sig självt så snart texten finns.
+   *
+   * Ingen användargest att vänta på — resenären startade resan och sitter still sedan
+   * dess. Blir texten aldrig klar (nätet svek) knuffas resan vidare ändå: en resa som
+   * blir stående vid en sten som inte gick att berätta om är en trasig resa.
+   */
+  useEffect(() => {
+    if (!autoLäs) return;
+    if (status === 'fel') { klart(); return; }
+    if (status !== 'klar' || !berättelse) return;
+    if (autoläst.current === sevärdhet.id) return;
+
+    autoläst.current = sevärdhet.id;
+    void läsUpp();
+  }, [autoLäs, status, berättelse, sevärdhet.id]);
+
+  /**
    * Webbläsarrösten. SYNKRON — anropas direkt i knapptrycket, aldrig efter ett `await`,
    * annars vägrar iOS ljuda (se `talSyntes.ts`).
    */
   function läsUppLokaltNu(text: string): void {
     const startade = läsUppLokalt(text, {
-      onSlut: () => { setSpelar(false); setLokalRöst(false); },
-      onFel: (m) => { setSpelar(false); setLokalRöst(false); setRöstFel(m); },
+      onSlut: () => { setSpelar(false); setLokalRöst(false); klart(); },
+      onFel: (m) => { setSpelar(false); setLokalRöst(false); setRöstFel(m); klart(); },
     });
     if (startade) {
       setSpelar(true);
       setLokalRöst(true);
     } else {
       setRöstFel('Den här webbläsaren har ingen röst att låna ut.');
+      // Ingen röst är inget skäl att låta resan stå still vid en sten.
+      klart();
     }
   }
 
@@ -195,7 +235,7 @@ export function SevardhetsBlad({ sevärdhet, onStäng }: Props) {
       <audio
         ref={audio}
         onPlaying={() => setSpelar(true)}
-        onEnded={() => setSpelar(false)}
+        onEnded={() => { setSpelar(false); klart(); }}
         onPause={() => setSpelar(false)}
       />
     </div>

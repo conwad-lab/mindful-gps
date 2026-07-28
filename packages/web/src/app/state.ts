@@ -16,7 +16,7 @@
 
 import {
   decode6, todayDay,
-  type LngLat, type RawTrace, type Route, type Waypoint,
+  type LngLat, type Polyline6, type RawTrace, type Route, type Waypoint,
 } from '@mindful/core';
 import { create } from 'zustand';
 
@@ -27,6 +27,9 @@ import { omrutta } from '../plan/api.js';
 // Direkt ur modulen, inte barrelen: den senare drar in hela ui:t (tsx-komponenter) i
 // storen, som inte är React. `sevardhetBerattelse` är ren TS.
 import { förhandshämta } from '../ui/sevardhetBerattelse.js';
+import {
+  curiosaLängs, resaOptionsFromUrl, TEMPO_START_S, VirtuellResa,
+} from '../resa/index.js';
 import {
   createGeoProvider, createRecorder, idbMemory, isSimulated, releaseAwake, requestSenses,
   simFart, simStartFart, sättSimFart, simulateRoute,
@@ -65,6 +68,17 @@ export interface AppState {
   readonly nav: NavUppdrag | null;
   /** Sevärdheten föraren tryckte på, eller null. Öppnar berättelsebladet. */
   readonly valdSevärdhet: SevärdhetsTryck | null;
+  /**
+   * Resan stannade vid ett curiosum och väntar på att det ska bli uppläst.
+   *
+   * ⛔ Enda flaggan som får bladet att läsa upp sig SJÄLVT. Den kan bara sättas av den
+   *    virtuella resan, som i sin tur kräver `?sim=1` — se `resa/index.ts`.
+   */
+  readonly resaLäser: boolean;
+  /** Sekunder mellan curiosa. Bara meningsfull under en virtuell resa. */
+  readonly resaTempoS: number;
+  /** Passerade curiosa av totalt — en lugn rad i reglaget, inte en förloppsindikator. */
+  readonly resaRäkning: { readonly passerade: number; readonly av: number };
   /** Svensk, färdig mening. Aldrig en felkod. */
   readonly error: string | null;
 }
@@ -91,6 +105,10 @@ export interface Actions {
   /** Föraren tryckte på en sevärdhet. Öppnar bladet — appen talar aldrig oombett. */
   visaSevärdhet(s: SevärdhetsTryck): void;
   stängSevärdhet(): void;
+  /** Curiosumet är uppläst (eller bladet stängdes) — resan rullar vidare. */
+  resaFortsätt(): void;
+  /** Nytt curiosa-tempo, sekunder. Slår igenom på sträckan som pågår. */
+  sättResaTempo(sekunder: number): void;
 }
 
 interface Motor {
@@ -106,6 +124,8 @@ let karta: MapHandle | null = null;
 let geo: GeoProvider | null = null;
 /** Pejlar vi efter en engångsposition just nu? Se `siktaPosition`. */
 let siktar = false;
+/** Den virtuella resan, eller null. Lever utanför React av samma skäl som recordern. */
+let resa: VirtuellResa | null = null;
 /** Alla körda turer, som trådar i spindelnätet. */
 let trådar: WebThread[] = [];
 /** Senaste fixen, orörd. Skrivs varje sekund, läses in i storen varannan. */
@@ -158,6 +178,9 @@ export const useApp = create<AppState & Actions>((set, get) => ({
   gapCount: 0,
   nav: null,
   valdSevärdhet: null,
+  resaLäser: false,
+  resaTempoS: resaOptionsFromUrl()?.tempoS ?? TEMPO_START_S,
+  resaRäkning: { passerade: 0, av: 0 },
   error: null,
 
   async boot(): Promise<void> {
@@ -230,6 +253,20 @@ export const useApp = create<AppState & Actions>((set, get) => ({
   stängSevärdhet(): void {
     karta?.markeraSevärdhet(null);
     set({ valdSevärdhet: null });
+    // Stängde man bladet mitt i en resa vill man vidare, inte stå kvar vid stenen.
+    if (get().resaLäser) get().resaFortsätt();
+  },
+
+  resaFortsätt(): void {
+    if (!get().resaLäser) return;
+    karta?.markeraSevärdhet(null);
+    set({ valdSevärdhet: null, resaLäser: false });
+    resa?.fortsätt();
+  },
+
+  sättResaTempo(sekunder): void {
+    resa?.sättTempo(sekunder);
+    set({ resaTempoS: resa?.tempoS ?? sekunder });
   },
 
   godkännIntro(): void {
@@ -273,6 +310,10 @@ export const useApp = create<AppState & Actions>((set, get) => ({
     // ⚠️ Ingen `await` före `starta()`: gesten som tryckte på "Kör" är den enda
     //    transienta aktivering iOS ger oss (se `starta`).
     await starta(set, get, läge, 'navigera');
+
+    // Virtuell resa? Då hämtas curiosa och resan tar över takten. EFTER `starta()`:
+    // hämtningen är ett nätanrop, och ett `await` före hade tystat iOS.
+    await startaResa(set, get, rutt.geometry);
   },
 
   async omrutt(req): Promise<void> {
@@ -302,11 +343,16 @@ export const useApp = create<AppState & Actions>((set, get) => ({
     const m = motor;
     if (!m || get().status !== 'recording') return;
 
+    // Resan först: den lyssnar på recordern, och en lyssnare som lever kvar efter att
+    // turen tagit slut är en resa som stannar vid curiosa i en tur som inte pågår.
+    resa?.stoppa();
+    resa = null;
+
     // Recordern skickar en sista `progress` innan den svarar — turens sluttal är alltså
     // redan i storen när vi kommer hit.
     const tur = await m.recorder.stop();
     releaseAwake();
-    set({ status: 'idle' });
+    set({ status: 'idle', resaLäser: false });
 
     if (!tur) {
       set({ vy: 'hem' });
@@ -470,6 +516,36 @@ async function starta(
   karta?.resetTrace();
   m.recorder.start(läge);
   set({ status: 'recording', vy: mål });
+}
+
+/**
+ * Starta den virtuella resan, om läget är påslaget.
+ *
+ * Tyst no-op i alla andra fall — utan `?sim=1&resa=1` finns ingen resa, och utan
+ * curiosa finns inget att stanna vid (då är det en vanlig simulerad körning, vilket är
+ * ett fullgott utfall och inte ett fel).
+ */
+async function startaResa(set: Sätt, get: Hämta, geometry: Polyline6): Promise<void> {
+  const val = resaOptionsFromUrl();
+  if (!val || !geo || !motor) return;
+
+  const curiosa = await curiosaLängs(geometry);
+  if (curiosa.length === 0) return;
+
+  resa = new VirtuellResa(geo, motor.recorder, geometry, curiosa, {
+    onCuriosum: (c, nummer, av) => {
+      karta?.markeraSevärdhet(c.at);
+      set({
+        valdSevärdhet: { id: c.id, namn: c.name, kind: c.kind, at: [c.at[0], c.at[1]] },
+        resaLäser: true,
+        resaRäkning: { passerade: nummer, av },
+      });
+    },
+    onFortsätter: () => { set({ resaLäser: false }); },
+  }, val.tempoS);
+
+  resa.start();
+  set({ resaTempoS: resa.tempoS, resaRäkning: resa.räkning });
 }
 
 /** Rita nätet (och, bakom `?debug=1`, hexagonerna). Tål att kartan inte finns än. */

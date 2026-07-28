@@ -251,6 +251,28 @@ export class SimGeoProvider implements GeoProvider {
     return this.#tickMs;
   }
 
+  /** Farten längs spåret, m/s. Den virtuella resan räknar restid ur den. */
+  get fartMs(): number {
+    return this.#speedMs;
+  }
+
+  /** Står simulatorn still? */
+  get pausad(): boolean {
+    return this.#timer === undefined;
+  }
+
+  /**
+   * Fortsätt där vi pausade.
+   *
+   * `stop()` ÄR pausen — den klipper intervallet men lämnar `#alongM` orörd — och det
+   * här är dess motsats. `start()` duger inte: den nollställer positionen till spårets
+   * början, och en resa som stannat vid en runsten skulle kastas hem till startpunkten
+   * i samma ögonblick den återupptogs.
+   */
+  återuppta(): void {
+    if (this.#timer === undefined) this.#startaIntervall();
+  }
+
   /**
    * Byt fart under körningen. Simulerad tid och position rör sig inte — bara hur ofta
    * fixarna kommer i verklig tid. Ett löpande intervall klipps och startas om med den nya
