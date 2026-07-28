@@ -45,7 +45,7 @@ export interface SightSource {
  * av det, och `osmium extract` läser om filen för varje hämtningsruta:
  *
  *   osmium tags-filter sweden-latest.osm.pbf \
- *     nwr/historic nwr/tourism=viewpoint,attraction,museum,artwork \
+ *     nwr/historic nwr/tourism=viewpoint,attraction,museum,artwork,gallery nwr/amenity=cafe \
  *     nwr/natural=waterfall nwr/leisure=nature_reserve nwr/man_made=lighthouse \
  *     nwr/amenity=place_of_worship \
  *     -o sevardheter.osm.pbf

@@ -5,7 +5,7 @@
  *    absolut och inte en lämplighetsfråga.
  */
 
-export { curiosaLängs, type Curiosum } from './curiosa.js';
+export { curiosaLängs, värmCuriosa, type Curiosum } from './curiosa.js';
 export {
   VirtuellResa, TEMPO_START_S, TEMPO_MIN_S, TEMPO_MAX_S, type ResaHändelser,
 } from './VirtuellResa.js';

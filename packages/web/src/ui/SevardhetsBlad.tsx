@@ -248,7 +248,7 @@ function sortNamn(kind: SevärdhetsTryck['kind']): string {
     utsikt: 'Utsiktsplats', vattenfall: 'Vattenfall', runsten: 'Runsten',
     fornlämning: 'Fornlämning', borg: 'Borg', fyr: 'Fyr', naturreservat: 'Naturreservat',
     kyrka: 'Kyrka', museum: 'Museum', sevärdhet: 'Sevärdhet', konst: 'Konst',
-    minnesmärke: 'Minnesmärke',
+    minnesmärke: 'Minnesmärke', kafé: 'Kafé', galleri: 'Galleri',
   };
   return namn[kind];
 }

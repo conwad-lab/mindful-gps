@@ -31,6 +31,7 @@ const REGLER: readonly Regel[] = [
   { nyckel: 'boundary',  värden: ['protected_area'],                     sort: 'naturreservat' },
   { nyckel: 'historic',  värden: ['church', 'chapel', 'monastery'],      sort: 'kyrka' },
   { nyckel: 'tourism',   värden: ['museum'],                             sort: 'museum' },
+  { nyckel: 'tourism',   värden: ['gallery'],                            sort: 'galleri' },
   { nyckel: 'tourism',   värden: ['attraction', 'artwork'],              sort: 'sevärdhet' },
   { nyckel: 'historic',  värden: ['memorial', 'monument'],               sort: 'minnesmärke' },
 ];
@@ -48,13 +49,26 @@ function ärSevärdKyrka(t: Taggar): boolean {
   return t['building'] === 'church' || t['building'] === 'chapel' || t['historic'] !== undefined;
 }
 
+/**
+ * Kaféet är också ett specialfall, av motsatt skäl mot kyrkan: det finns för MÅNGA.
+ *
+ * `amenity=cafe` träffar varenda mackkiosk och varje Espresso House i en galleria. Bara
+ * de med NAMN räknas — ett kafé utan namn går inte att berätta om, och den virtuella
+ * resan (enda konsumenten av sorten) stannar bara vid sådant det finns något att säga
+ * om. Namnet är den billigaste kvalitetssignal OSM har.
+ */
+function ärBerättbartKafé(t: Taggar): boolean {
+  return t['amenity'] === 'cafe' && namnAv(t).length > 0;
+}
+
 /** `null` = ingen sevärdhet. Det normala svaret. */
 export function sortAv(t: Taggar): SightKind | null {
   for (const r of REGLER) {
     const v = t[r.nyckel];
     if (v !== undefined && r.värden.includes(v)) return r.sort;
   }
-  return ärSevärdKyrka(t) ? 'kyrka' : null;
+  if (ärSevärdKyrka(t)) return 'kyrka';
+  return ärBerättbartKafé(t) ? 'kafé' : null;
 }
 
 /** "Kosta glasbruk". Tom sträng är helt i sin ordning — en namnlös runsten är en runsten. */

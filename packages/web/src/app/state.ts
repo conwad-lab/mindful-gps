@@ -28,7 +28,7 @@ import { omrutta } from '../plan/api.js';
 // storen, som inte är React. `sevardhetBerattelse` är ren TS.
 import { förhandshämta } from '../ui/sevardhetBerattelse.js';
 import {
-  curiosaLängs, resaOptionsFromUrl, TEMPO_START_S, VirtuellResa,
+  curiosaLängs, resaOptionsFromUrl, TEMPO_START_S, VirtuellResa, värmCuriosa, ärVirtuellResa,
 } from '../resa/index.js';
 import {
   createGeoProvider, createRecorder, idbMemory, isSimulated, releaseAwake, requestSenses,
@@ -304,8 +304,10 @@ export const useApp = create<AppState & Actions>((set, get) => ({
 
     // Värm textcachen för sevärdheterna längs rutten, i bakgrunden. Nu, medan telefonen
     // troligen har nät — så en berättelse finns på ett tryck sen, ute i täckningsskuggan.
-    // Fire-and-forget: får aldrig fördröja starten.
-    förhandshämta(rutt.geometry);
+    // Fire-and-forget: får aldrig fördröja starten. På virtuell resa hoppas den över —
+    // där värms i stället exakt de valda curiosa (se `startaResa`), hälften så många
+    // anrop och rätt platser.
+    if (!ärVirtuellResa()) förhandshämta(rutt.geometry);
 
     // ⚠️ Ingen `await` före `starta()`: gesten som tryckte på "Kör" är den enda
     //    transienta aktivering iOS ger oss (se `starta`).
@@ -531,6 +533,9 @@ async function startaResa(set: Sätt, get: Hämta, geometry: Polyline6): Promise
 
   const curiosa = await curiosaLängs(geometry);
   if (curiosa.length === 0) return;
+
+  // Komponera stoppens texter nu, medan resan rullar mot det första.
+  värmCuriosa(curiosa);
 
   resa = new VirtuellResa(geo, motor.recorder, geometry, curiosa, {
     onCuriosum: (c, nummer, av) => {

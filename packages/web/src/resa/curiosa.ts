@@ -45,3 +45,18 @@ export async function curiosaLängs(
     return [];
   }
 }
+
+/**
+ * Värm berättelsecachen för EXAKT de valda curiosa, i bakgrunden.
+ *
+ * Resan använder den här i stället för den generiska `/sight/prefetch`: prefetchen
+ * väljer efter körningens vikter och värmer upp till tolv texter, varav de flesta inte
+ * är resans stopp. Att komponera just de sex vi ska stanna vid är både billigare och
+ * träffsäkrare. Fire-and-forget — ett stopp vars text inte hann bli klar hämtar den
+ * live medan resan står still, vilket är exakt rätt ögonblick att vänta i.
+ */
+export function värmCuriosa(curiosa: readonly Curiosum[]): void {
+  for (const c of curiosa) {
+    void fetch(`${API}/api/sight/${c.id}/berattelse`).catch(() => { /* tyst */ });
+  }
+}

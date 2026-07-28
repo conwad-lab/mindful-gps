@@ -79,6 +79,35 @@ async function skapaBerättelse(pool: Pool, sight: Sight): Promise<Rad> {
   return { text: b.text, sources: [...b.källor], harLjud: false };
 }
 
+/**
+ * Resans smak: "värd att STANNA vid?", inte "värd att köra förbi?".
+ *
+ * Kalibrerad efter operatörens uttalade smak (2026-07-28): vackra vyer, trevliga kaféer
+ * och utställningar lockar; runstenar och fornlämningar gör det inte. Runstenen behåller
+ * ett nollskilt värde med flit — på en sträcka utan annat är en runsten bättre än
+ * tystnad — men tröskeln nedan håller den utanför så länge något annat finns.
+ */
+const RESA_VIKT: Readonly<Record<SightKind, number>> = {
+  utsikt: 1.00,
+  vattenfall: 0.95,
+  kafé: 0.90,
+  galleri: 0.85,
+  museum: 0.80,
+  borg: 0.75,
+  fyr: 0.75,
+  naturreservat: 0.70,
+  sevärdhet: 0.55,
+  konst: 0.45,
+  kyrka: 0.35,
+  minnesmärke: 0.15,
+  runsten: 0.12,
+  fornlämning: 0.10,
+};
+
+/** Sorterna resan över huvud taget frågar databasen om. Under 0,30 är det inte smak. */
+const RESA_SORTER: readonly SightKind[] = (Object.keys(RESA_VIKT) as SightKind[])
+  .filter((k) => RESA_VIKT[k] >= 0.30);
+
 function idAv(raw: unknown): bigint {
   if (typeof raw !== 'string' || !/^\d+$/.test(raw)) throw new BadRequest('ogiltigt id');
   return BigInt(raw);
@@ -183,8 +212,15 @@ export function sightStoryRoutes(app: FastifyInstance, opts: { deps: { pool: Poo
    * POST /api/sight/langs  { polyline, radiusM?, max? }
    *   → { curiosa: [{ id, kind, name, at, alongM }] }  i den ordning man passerar dem
    *
-   * Sevärdheterna längs en rutt. Samma urval som `prefetch` — tunga sorter, tyngst
-   * först, samma tak — men svaret bär `alongM`: sträckan in på rutten där de ligger.
+   * Sevärdheterna längs en rutt — men vägda med RESANS smak, inte körningens.
+   *
+   * `SIGHT_WEIGHT` svarar på "värd att köra förbi?": utsikten toppar för att den syns
+   * genom rutan, kaféet ligger i botten för att det kräver att man stannar. Den virtuella
+   * resan STANNAR — det är dess natur — så dess fråga är den omvända: "värd att stanna
+   * vid?". Därför en egen profil här, i stället för att böja de globala vikterna (som
+   * också styr kartans trängselgallring och prefetchens urval under riktiga körningar).
+   *
+   * Svaret bär `alongM`: sträckan in på rutten där sevärdheten ligger.
    *
    * ⛔ Den virtuella resan är enda anroparen. Under en riktig körning ritas prickarna på
    *    kartan och föraren trycker själv; en lista över vad som kommer härnäst vore
@@ -198,7 +234,9 @@ export function sightStoryRoutes(app: FastifyInstance, opts: { deps: { pool: Poo
     if (coords.length < 2) return { curiosa: [] };
 
     const radie = typeof body.radiusM === 'number' ? body.radiusM : 1200;
-    const max = typeof body.max === 'number' ? body.max : 12;
+    // 6, inte 12: en resa med tolv stopp är en busslinje. Sex ger rytm utan att tempot
+    // någonsin känns som en kö — och halverar berättelsekostnaden per resa på köpet.
+    const max = typeof body.max === 'number' ? body.max : 6;
     const wkt = `LINESTRING(${coords.map(([lon, lat]) => `${lon} ${lat}`).join(',')})`;
 
     const res = await pool.query<{
@@ -213,14 +251,19 @@ export function sightStoryRoutes(app: FastifyInstance, opts: { deps: { pool: Poo
                 s.at::geography,
                 ST_Simplify(linje.g, 0.0008)::geography,
                 $3)`,
-      [wkt, TUNGA_SORTER as unknown as string[], radie],
+      [wkt, RESA_SORTER as unknown as string[], radie],
     );
 
-    // Tyngst först, med namn före namnlös vid lika vikt: en namngiven runsten går att
-    // berätta om, en namnlös ger "jag hittar inte mycket om den här platsen".
+    // Smakligast först — och namnet väger TUNGT, inte som skiljedomare utan som eget
+    // värde. I bilen är en namnlös utsikt fortfarande en utsikt; på en VIRTUELL resa ser
+    // man ingen vy, bara berättelsen, och en plats utan namn ger bara "jag hittar inte
+    // mycket om just den här platsen". MÄTT före bonusen: 2 av 6 stopp på Lund →
+    // Simrishamn var namnlösa utsikter. +0,15 låter ett namngivet kafé (1,05) slå en
+    // namnlös utsikt (1,00), medan en namngiven utsikt (1,15) fortfarande toppar allt.
+    const NAMN_BONUS = 0.15;
     const rankade = [...res.rows].sort((a, b) => {
-      const va = SIGHT_WEIGHT[a.kind as SightKind] + (a.name ? 0.001 : 0);
-      const vb = SIGHT_WEIGHT[b.kind as SightKind] + (b.name ? 0.001 : 0);
+      const va = (RESA_VIKT[a.kind as SightKind] ?? 0) + (a.name ? NAMN_BONUS : 0);
+      const vb = (RESA_VIKT[b.kind as SightKind] ?? 0) + (b.name ? NAMN_BONUS : 0);
       return vb - va;
     });
 

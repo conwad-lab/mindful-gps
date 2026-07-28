@@ -202,10 +202,17 @@ som slår upp sig självt i 90 km/h är en olycka. Autoläsningen kan därför b
 tändas av resläget, och resläget kräver `?sim=1` — en riktig körning kan inte nå
 det, oavsett URL.
 
-Urvalet (`POST /api/sight/langs`) är tyngst-först med **minst 2 km mellan
-curiosa**. Mätt på Lund → Simrishamn utan spärren: 9 av 12 låg inom de första
-4,4 km — fyra namnlösa runstenar inom 200 m — och sedan tystnad i fem mil. Med
-spärren: 12 jämnt fördelade över 10 mil, 10 av 12 med namn.
+Urvalet (`POST /api/sight/langs`) styrs av RESANS smakprofil (`RESA_VIKT` i
+`routes/sightStory.ts`), inte kartans `SIGHT_WEIGHT`: kartan frågar "värd att
+köra förbi?", resan frågar "värd att stanna vid?". Utsikter, vattenfall,
+kaféer, gallerier och museer toppar; runstenar/fornlämningar ligger under
+tröskeln och väljs aldrig. Kaféer och gallerier är fork-sorter i datapipelinen
+(`amenity=cafe` med namn, `tourism=gallery` — kräver det utökade
+sevärdhetsfiltret ovan + omseedning). Max **6** curiosa per resa, **minst 2 km
+mellanrum**, och namn ger +0,15 i rankingen — på en virtuell resa ser man ingen
+vy, bara berättelsen, så en namnlös plats är nästan värdelös. Mätt på Lund →
+Simrishamn: 3 namngivna utsikter + 3 namngivna kaféer (bl.a. Mandelmanns
+Trädgårdar), noll runstenar.
 
 Kräver OpenRouter-krediter: utan berättelse hoppar resan vidare direkt (den
 stannar aldrig vid en sten den inte kan berätta om).

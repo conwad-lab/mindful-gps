@@ -40,7 +40,8 @@ import type { LngLat } from './types.js';
 
 export type SightKind =
   | 'utsikt' | 'vattenfall' | 'runsten' | 'fornlämning' | 'borg' | 'fyr'
-  | 'naturreservat' | 'kyrka' | 'museum' | 'sevärdhet' | 'konst' | 'minnesmärke';
+  | 'naturreservat' | 'kyrka' | 'museum' | 'sevärdhet' | 'konst' | 'minnesmärke'
+  | 'kafé' | 'galleri';
 
 /**
  * Hur mycket en sevärdhet är värd att KÖRA FÖRBI. Inte hur intressant den är att besöka.
@@ -67,6 +68,12 @@ export const SIGHT_WEIGHT: Readonly<Record<SightKind, number>> = {
   museum: 0.35,
   minnesmärke: 0.30,
   konst: 0.30,
+  // ⚠️ Fork-sorter för den virtuella resan. MEDVETET under TUNG_NOG (0,70): under en
+  //    riktig körning ska ett kafé varken synas på översikten eller förhandshämtas —
+  //    upstreams doktrin är "värd att KÖRA FÖRBI", och ett kafé kräver att man stannar.
+  //    Resan har sin egen smakprofil (RESA_VIKT i routes/sightStory.ts) som lyfter dem.
+  kafé: 0.30,
+  galleri: 0.35,
 };
 
 export interface Sight {
