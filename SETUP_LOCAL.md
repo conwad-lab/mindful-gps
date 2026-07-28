@@ -38,9 +38,24 @@ I `.env`:
   (Dalby heligkorskyrka) korrekt. Ärligheten är värd merkostnaden.
   Obs vid modellbyte-test: berättelser cachas i `sight_story` — rensa raden
   (`DELETE FROM sight_story WHERE sight_id = …`) annars serveras gammal text.
-- `ELEVENLABS_API_KEY` — **valfri**. Tom = uppläsningsknappen svarar
-  "Uppläsning är inte påslagen". Klistra in en nyckel från elevenlabs.io och
-  starta om `npm run dev` så vaknar rösten — ingen kodändring behövs.
+- `ELEVENLABS_API_KEY` — **valfri, och kräver betald plan**. Tom = uppläsnings-
+  knappen svarar ärligt "Uppläsning är inte påslagen" (501).
+
+  ⚠️ Testat 2026-07-28: **ElevenLabs Free-plan har ingen API-åtkomst.** Varje
+  röst ger `402 paid_plan_required` ("Free users cannot use library voices via
+  the API"), och ett tomt "Mina Röster" hjälper inte — det är planen som
+  blockerar, inte röstvalet. Minst Starter (~$6/mån) krävs.
+
+  ⚠️ Upstreams förvalda `ELEVENLABS_VOICE_ID=Mml2TPQDyjmb9MxQdllJ` är
+  upphovsmannens egen röst och ger `404 voice_not_found` på andra konton.
+  Byt till en röst ur ditt eget konto när planen är uppgraderad.
+
+  Håll nyckeln TOM tills kontot är på Starter+ — med en nyckel satt kastar
+  `/rost` 500 "internt fel" i stället för det ärliga 501:et.
+
+  Gratis alternativ om uppläsning ska finnas utan kostnad: webbläsarens egen
+  `speechSynthesis` (svensk röst finns inbyggd i macOS/iOS), som ersätter
+  server-TTS:en helt.
 
 ## 2. OSM-data (engångs, ~784 MB)
 
