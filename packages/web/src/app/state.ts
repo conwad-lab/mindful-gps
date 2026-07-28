@@ -548,7 +548,12 @@ async function startaResa(set: Sätt, get: Hämta, geometry: Polyline6): Promise
         resaRäkning: { passerade: nummer, av },
       });
     },
-    onFortsätter: () => { set({ resaLäser: false }); },
+    // Även nödvägen (resans 120 s-vakt) ska lämna ett rent bord: utan blad-städningen
+    // här blev ett hängt stopp stående öppet över resten av resan (mätt: Byvägen35).
+    onFortsätter: () => {
+      karta?.markeraSevärdhet(null);
+      set({ resaLäser: false, valdSevärdhet: null });
+    },
     // Samma väg som håll-in-knappen: turen bokförs i nätet på exakt samma sätt.
     onFramme: () => { void get().avslutaNav(true); },
   }, val.tempoS);

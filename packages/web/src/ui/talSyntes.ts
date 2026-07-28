@@ -56,6 +56,17 @@ let vakt: ReturnType<typeof setTimeout> | null = null;
  */
 let generation = 0;
 
+/**
+ * ⚠️ GC-SKYDD — ta inte bort.
+ *
+ * Chrome skräpsamlar SpeechSynthesisUtterance-objekt som ingen refererar, ÄVEN när de
+ * ligger i motorns kö — och ett samlat yttrandes händelser fyras aldrig. MÄTT på en
+ * virtuell resa (stopp 5, Byvägen35): sista meningens `onend` kom aldrig, bladet stod
+ * kvar som "spelar" i evighet, och tystnaden fick Chrome att dessutom strypa den dolda
+ * flikens timers. Listan håller yttrandena vid liv tills nästa uppläsning tar över.
+ */
+let hållVidLiv: SpeechSynthesisUtterance[] = [];
+
 /** Finns motorn över huvud taget? Äldre webbläsare och vissa inbäddade vyer saknar den. */
 export function finnsTalsyntes(): boolean {
   return typeof window !== 'undefined' && 'speechSynthesis' in window;
@@ -150,6 +161,7 @@ export function läsUppLokalt(text: string, händelser: Händelser): boolean {
   const min = generation;
   window.speechSynthesis.cancel();
   släppVakt();
+  hållVidLiv = [];
 
   stycken.forEach((mening, i) => {
     const yttrande = new SpeechSynthesisUtterance(mening);
@@ -173,18 +185,23 @@ export function läsUppLokalt(text: string, händelser: Händelser): boolean {
       händelser.onFel('Webbläsarens röst kunde inte läsa upp.');
     };
 
+    hållVidLiv.push(yttrande);
     window.speechSynthesis.speak(yttrande);
   });
 
   // Watchdog: hinner motorn inte bli klar på dubbla den estimerade tiden har den hängt
   // sig (iOS, bakgrundad app). Avbryt, så nästa tryck möter en ren motor.
   const estimatMs = Math.max((text.length / TECKEN_PER_SEKUND) * 1000, MINSTA_VAKTTID_MS);
+  // ⚠️ Vakten fullbordar ALLTID (given att generationen stämmer). Lever vakten är
+  //    `onend` per definition inte levererad — släppVakt() i onend hade annars dödat
+  //    den. En tidigare version gjorde `return` när motorn inte talade, i tron att det
+  //    betydde "klar på vanlig väg" — men det är exakt vad GC-buggen ser ut som, och
+  //    resan blev stående vid en tyst berättelse tills dess egen nödvakt slog till.
   vakt = setTimeout(() => {
     vakt = null;
     if (min !== generation) return;
-    if (!window.speechSynthesis.speaking) return;
     generation += 1;
-    window.speechSynthesis.cancel();
+    if (window.speechSynthesis.speaking) window.speechSynthesis.cancel();
     händelser.onSlut();
   }, estimatMs * 2);
 

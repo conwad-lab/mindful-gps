@@ -32,6 +32,7 @@ const REGLER: readonly Regel[] = [
   { nyckel: 'historic',  värden: ['church', 'chapel', 'monastery'],      sort: 'kyrka' },
   { nyckel: 'tourism',   värden: ['museum'],                             sort: 'museum' },
   { nyckel: 'tourism',   värden: ['gallery'],                            sort: 'galleri' },
+  { nyckel: 'craft',     värden: ['winery'],                             sort: 'vingård' },
   { nyckel: 'tourism',   värden: ['attraction', 'artwork'],              sort: 'sevärdhet' },
   { nyckel: 'historic',  värden: ['memorial', 'monument'],               sort: 'minnesmärke' },
 ];
@@ -50,16 +51,20 @@ function ärSevärdKyrka(t: Taggar): boolean {
 }
 
 /**
- * Kaféet är också ett specialfall, av motsatt skäl mot kyrkan: det finns för MÅNGA.
+ * Sorterna som bara räknas MED NAMN, av motsatt skäl mot kyrkan: de finns för MÅNGA.
  *
- * `amenity=cafe` träffar varenda mackkiosk och varje Espresso House i en galleria. Bara
- * de med NAMN räknas — ett kafé utan namn går inte att berätta om, och den virtuella
- * resan (enda konsumenten av sorten) stannar bara vid sådant det finns något att säga
- * om. Namnet är den billigaste kvalitetssignal OSM har.
+ * `amenity=cafe` träffar varenda mackkiosk, `natural=beach` varje sandstrand längs en
+ * hel kust, `leisure=garden` varenda villarabatt någon ritat in. Bara de med NAMN
+ * räknas — en plats utan namn går inte att berätta om, och den virtuella resan (enda
+ * konsumenten av sorterna) stannar bara vid sådant det finns något att säga om.
+ * Namnet är den billigaste kvalitetssignal OSM har.
  */
-function ärBerättbartKafé(t: Taggar): boolean {
-  return t['amenity'] === 'cafe' && namnAv(t).length > 0;
-}
+const NAMNKRÄVANDE: readonly Regel[] = [
+  { nyckel: 'amenity', värden: ['cafe'],   sort: 'kafé' },
+  { nyckel: 'natural', värden: ['beach'],  sort: 'badplats' },
+  { nyckel: 'leisure', värden: ['garden'], sort: 'trädgård' },
+  { nyckel: 'shop',    värden: ['farm'],   sort: 'gårdsbutik' },
+];
 
 /** `null` = ingen sevärdhet. Det normala svaret. */
 export function sortAv(t: Taggar): SightKind | null {
@@ -68,7 +73,14 @@ export function sortAv(t: Taggar): SightKind | null {
     if (v !== undefined && r.värden.includes(v)) return r.sort;
   }
   if (ärSevärdKyrka(t)) return 'kyrka';
-  return ärBerättbartKafé(t) ? 'kafé' : null;
+
+  if (namnAv(t).length > 0) {
+    for (const r of NAMNKRÄVANDE) {
+      const v = t[r.nyckel];
+      if (v !== undefined && r.värden.includes(v)) return r.sort;
+    }
+  }
+  return null;
 }
 
 /** "Kosta glasbruk". Tom sträng är helt i sin ordning — en namnlös runsten är en runsten. */

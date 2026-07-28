@@ -116,7 +116,19 @@ export class VirtuellResa {
     this.#recorder = recorder;
     this.#spår = decode6(geometry);
     this.#spårLängdM = length(this.#spår);
-    this.#curiosa = curiosa;
+
+    // ⚠️ Räkna om alongM i VÅR metrik. Serverns tal kommer ur PostGIS geography
+    //    (WGS84-ellipsoid); vårt ur haversine (sfär). Skillnaden är ~0,3 % — 250 m på
+    //    en 8-milarutt — och ett curiosum i ruttens sista bit kan då ligga BORTOM allt
+    //    vi någonsin mäter, och hoppas över tyst. MÄTT: Lund → Kivik slutade "5 av 6".
+    //    Serverns alongM styr fortfarande urval och ordning; här styr det META, och då
+    //    måste linjalen vara vår egen.
+    this.#curiosa = curiosa
+      .map((c) => ({
+        ...c,
+        alongM: projectOnPolyline(c.at, this.#spår)?.alongM ?? c.alongM,
+      }))
+      .sort((a, b) => a.alongM - b.alongM);
     this.#händelser = händelser;
     this.#tempoS = tempoS;
   }

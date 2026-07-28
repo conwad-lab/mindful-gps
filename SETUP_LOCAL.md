@@ -95,8 +95,9 @@ osmium tags-filter sweden-latest.osm.pbf \
 # Sevärdheternas källa (~9 MB) — filter från packages/server/src/sights/osmium.ts
 osmium tags-filter sweden-latest.osm.pbf \
   nwr/historic nwr/tourism=viewpoint,attraction,museum,artwork,gallery \
-  nwr/natural=waterfall nwr/leisure=nature_reserve nwr/man_made=lighthouse \
-  nwr/amenity=place_of_worship,cafe \
+  nwr/natural=waterfall,beach nwr/leisure=nature_reserve,garden \
+  nwr/man_made=lighthouse nwr/amenity=place_of_worship,cafe \
+  nwr/craft=winery nwr/shop=farm \
   -o ../vagindex/sevardheter.osm.pbf
 cd ../..
 ```
@@ -210,9 +211,11 @@ Urvalet (`POST /api/sight/langs`) styrs av RESANS smakprofil (`RESA_VIKT` i
 `routes/sightStory.ts`), inte kartans `SIGHT_WEIGHT`: kartan frågar "värd att
 köra förbi?", resan frågar "värd att stanna vid?". Utsikter, vattenfall,
 kaféer, gallerier och museer toppar; runstenar/fornlämningar ligger under
-tröskeln och väljs aldrig. Kaféer och gallerier är fork-sorter i datapipelinen
-(`amenity=cafe` med namn, `tourism=gallery` — kräver det utökade
-sevärdhetsfiltret ovan + omseedning). Max **6** curiosa per resa, **minst 2 km
+tröskeln och väljs aldrig. Fork-sorterna i datapipelinen: kafé, galleri,
+badplats, trädgård, vingård och gårdsbutik (kafé/badplats/trädgård/gårdsbutik
+kräver NAMN i OSM — namnlösa är mackkiosker, sanddyner och villarabatter;
+vingård via `craft=winery`, galleri via `tourism=gallery`). Kräver det utökade
+sevärdhetsfiltret ovan + omseedning. Max **6** curiosa per resa, **minst 2 km
 mellanrum**, och namn ger +0,15 i rankingen — på en virtuell resa ser man ingen
 vy, bara berättelsen, så en namnlös plats är nästan värdelös. Mätt på Lund →
 Simrishamn: 3 namngivna utsikter + 3 namngivna kaféer (bl.a. Mandelmanns

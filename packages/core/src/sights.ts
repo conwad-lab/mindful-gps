@@ -41,7 +41,7 @@ import type { LngLat } from './types.js';
 export type SightKind =
   | 'utsikt' | 'vattenfall' | 'runsten' | 'fornlämning' | 'borg' | 'fyr'
   | 'naturreservat' | 'kyrka' | 'museum' | 'sevärdhet' | 'konst' | 'minnesmärke'
-  | 'kafé' | 'galleri';
+  | 'kafé' | 'galleri' | 'badplats' | 'trädgård' | 'vingård' | 'gårdsbutik';
 
 /**
  * Hur mycket en sevärdhet är värd att KÖRA FÖRBI. Inte hur intressant den är att besöka.
@@ -74,6 +74,10 @@ export const SIGHT_WEIGHT: Readonly<Record<SightKind, number>> = {
   //    Resan har sin egen smakprofil (RESA_VIKT i routes/sightStory.ts) som lyfter dem.
   kafé: 0.30,
   galleri: 0.35,
+  badplats: 0.35,
+  trädgård: 0.30,
+  vingård: 0.35,
+  gårdsbutik: 0.30,
 };
 
 export interface Sight {
