@@ -30,8 +30,14 @@ cp .env.example .env
 
 I `.env`:
 - `OPENROUTER_API_KEY` — krävs för sevärdhets-berättelserna (annars artig 501).
-- `OPENROUTER_STORY_MODEL=anthropic/claude-haiku-4.5:online` — billigare än
-  Perplexity-förvalet; behåll `:online`, annars försvinner källorna.
+- `OPENROUTER_STORY_MODEL=perplexity/sonar-pro-search` — behåll förvalet.
+  A/B-testat 2026-07-28 på Linné-statyn i Lund: `claude-haiku-4.5:online`
+  (det "billigare alternativet" i `.env.example`) fabulerade självsäkert om
+  Linnés Hammarby i Uppsala trots koordinater i prompten; sonar svarade ärligt
+  "Jag hittar inte mycket om just den här platsen" och grundade motprovet
+  (Dalby heligkorskyrka) korrekt. Ärligheten är värd merkostnaden.
+  Obs vid modellbyte-test: berättelser cachas i `sight_story` — rensa raden
+  (`DELETE FROM sight_story WHERE sight_id = …`) annars serveras gammal text.
 - `ELEVENLABS_API_KEY` — **valfri**. Tom = uppläsningsknappen svarar
   "Uppläsning är inte påslagen". Klistra in en nyckel från elevenlabs.io och
   starta om `npm run dev` så vaknar rösten — ingen kodändring behövs.
