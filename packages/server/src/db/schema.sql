@@ -125,8 +125,11 @@ CREATE TABLE IF NOT EXISTS sight (
   wiki        boolean NOT NULL DEFAULT false         -- har wikipedia-/wikidata-tagg i OSM
 );
 
--- Befintliga databaser saknar kolumnen; migrate() kör hela filen idempotent.
+-- Befintliga databaser saknar kolumnerna; migrate() kör hela filen idempotent.
 ALTER TABLE sight ADD COLUMN IF NOT EXISTS wiki boolean NOT NULL DEFAULT false;
+-- Pärlspanarens dom: NULL = aldrig prövad, true = omtyckt enligt webben, false = prövad
+-- och inte utpekad. Skrivs av hittaPärlor; NULL-raderna är kön av oprövade kandidater.
+ALTER TABLE sight ADD COLUMN IF NOT EXISTS parla boolean;
 
 CREATE INDEX IF NOT EXISTS sight_tile_idx ON sight (tile_h3_6);
 CREATE INDEX IF NOT EXISTS sight_at_idx ON sight USING GIST (at);

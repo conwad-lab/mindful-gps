@@ -113,7 +113,7 @@ export async function komponeraBerättelse(
       {
         role: 'user',
         content: `Sök på webben och berätta om ${vad}, ${var_}vid koordinaterna`
-          + ` ${lat.toFixed(5)}, ${lon.toFixed(5)} i Sverige. Hittar du inget om just den`
+          + ` ${lat.toFixed(5)}, ${lon.toFixed(5)}. Hittar du inget om just den`
           + ' här platsen, säg det rakt ut.',
       },
     ],

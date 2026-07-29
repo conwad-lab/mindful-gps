@@ -224,7 +224,23 @@ intygat att platsen förtjänar en artikel. Utan wiki-bonusen dominerade
 namnade bykrogar ("lite tråkiga ställen", operatören efter Lund → Åhus);
 med den slår en wiki-taggad borg varje bykrog. Dessutom **högst 2 av samma
 sort per resa** — fyra kaféer är en fikarunda, inte en resa. Flaggan lagras
-i `sight.wiki` och kräver omseedning när den introduceras. Max **6** curiosa per resa, **minst 2 km
+i `sight.wiki` och kräver omseedning när den introduceras.
+
+**Pärlspanaren** (`sights/parlor.ts`): det som gör ett ställe älskat — Café
+Boule-klassen — finns inte i någon tagg; det bor på webben. Ruttens oprövade
+kandidater (kaféer/krogar/gårdsbutiker/gallerier/vingårdar, max 25) skickas
+till sökmodellen med frågan "vilka är särskilt omtyckta?"; utpekade rankas
+som wiki-platser (+0,35). Domen cachas i `sight.parla` (NULL = oprövad) —
+första resan över en sträcka betalar ETT sökanrop, resten läser gratis.
+Ompröva ett ställe: `UPDATE sight SET parla = NULL WHERE id = …`. Verifierat:
+spanaren pekade själv ut Talldungen, Blåherremölla och Café Boule.
+
+**Andra länder**: sökningen begränsas till Sverige som förval; `?land=es` i
+URL:en byter geokodningsland (Photon `countrycode`, Nominatim `countrycodes`).
+Berättelseprompten är landsneutral. Ny region kräver: Geofabrik-extrakt in i
+`custom_files/` (Valhalla bygger alla pbf:er den ser), omkört tile-bygge,
+filtrerade region-pbf:er i `vagindex/`, och en seed med region-pbf:erna som
+ROADS_PBF/SIGHTS_PBF. Max **6** curiosa per resa, **minst 2 km
 mellanrum**, och namn ger +0,15 i rankingen — på en virtuell resa ser man ingen
 vy, bara berättelsen, så en namnlös plats är nästan värdelös. Mätt på Lund →
 Simrishamn: 3 namngivna utsikter + 3 namngivna kaféer (bl.a. Mandelmanns

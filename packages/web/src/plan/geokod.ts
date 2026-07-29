@@ -27,6 +27,13 @@ import type { LngLat } from '@mindful/core';
 
 const PHOTON = 'https://photon.komoot.io/api/';
 
+/**
+ * Landet sökningen begränsas till. Sverige som förval — men en virtuell resa kan gå
+ * var som helst (skarpt fall: Cambrils → Altafulla), och då säger URL:en det:
+ * `?land=es`. Läses en gång; landet byter inte mitt i en session.
+ */
+const LAND = new URLSearchParams(location.search).get('land')?.toLowerCase() ?? 'se';
+
 /** Fler än så är en lista man läser i stället för väljer ur. */
 const ANTAL = 6;
 
@@ -110,7 +117,7 @@ async function sökNominatim(q: string, signal?: AbortSignal): Promise<Plats[]> 
   const url = new URL('https://nominatim.openstreetmap.org/search');
   url.searchParams.set('q', q);
   url.searchParams.set('format', 'jsonv2');
-  url.searchParams.set('countrycodes', 'se');   // ⚠️ PLURAL här — tvärtom mot Photon.
+  url.searchParams.set('countrycodes', LAND);   // ⚠️ PLURAL här — tvärtom mot Photon.
   url.searchParams.set('limit', String(ANTAL));
 
   const svar = await fetch(url, signal ? { signal } : {});
@@ -170,7 +177,7 @@ async function sökPhoton(
   const url = new URL(PHOTON);
   url.searchParams.set('q', q);
   url.searchParams.set('lang', 'default');
-  url.searchParams.set('countrycode', 'se');
+  url.searchParams.set('countrycode', LAND);
   url.searchParams.set('limit', String(ANTAL));
   if (nära) {
     url.searchParams.set('lon', nära[0].toFixed(5));

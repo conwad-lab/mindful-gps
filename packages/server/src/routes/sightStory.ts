@@ -20,6 +20,7 @@ import { harÖppenRouterNyckel } from '../ai/openrouter.js';
 import { AISaknasError, komponeraBerättelse } from '../sights/berattelse.js';
 import type { ORKälla } from '../ai/openrouter.js';
 import { RöstSaknasError, talTillLjud } from '../sights/rost.js';
+import { hittaPärlor } from '../sights/parlor.js';
 
 /**
  * De sorter som ritas på översikten och alltså är värda att förhandshämta — samma tröskel
@@ -249,10 +250,10 @@ export function sightStoryRoutes(app: FastifyInstance, opts: { deps: { pool: Poo
 
     const res = await pool.query<{
       id: string; kind: string; name: string; lon: number; lat: number; along_m: number;
-      wiki: boolean;
+      wiki: boolean; parla: boolean | null;
     }>(
       `WITH linje AS (SELECT ST_GeomFromText($1, 4326) AS g)
-       SELECT s.id, s.kind, s.name, s.wiki, ST_X(s.at) AS lon, ST_Y(s.at) AS lat,
+       SELECT s.id, s.kind, s.name, s.wiki, s.parla, ST_X(s.at) AS lon, ST_Y(s.at) AS lat,
               ST_LineLocatePoint(linje.g, s.at) * ST_Length(linje.g::geography) AS along_m
          FROM sight s, linje
         WHERE s.kind = ANY($2::text[])
@@ -288,13 +289,22 @@ export function sightStoryRoutes(app: FastifyInstance, opts: { deps: { pool: Poo
     // ställen dyker upp — jag vill ha riktiga sevärdheter." +0,35 låter en wiki-taggad
     // borg (0,75+0,15+0,35 = 1,25) slå varenda bykrog (1,05), medan en wiki-taggad
     // utsikt (1,50) fortfarande toppar allt.
+    // Och pärlorna väger som wiki. Det som gör Café Boule älskat finns inte i någon
+    // tagg — det bor på webben, och pärlspanaren (sights/parlor.ts) frågar den. Domen
+    // cachas per plats; på en väg man aldrig kört (Cambrils → Altafulla) är det här
+    // enda sättet att hitta ställena man inte visste att man letade efter.
+    const pärlor = await hittaPärlor(pool, res.rows);
+
     const NAMN_BONUS = 0.15;
     const WIKI_BONUS = 0.35;
+    const PÄRL_BONUS = 0.35;
     const rankade = [...res.rows].sort((a, b) => {
       const va = (RESA_VIKT[a.kind as SightKind] ?? 0)
-        + (a.name ? NAMN_BONUS : 0) + (a.wiki ? WIKI_BONUS : 0);
+        + (a.name ? NAMN_BONUS : 0) + (a.wiki ? WIKI_BONUS : 0)
+        + (pärlor.has(a.id) ? PÄRL_BONUS : 0);
       const vb = (RESA_VIKT[b.kind as SightKind] ?? 0)
-        + (b.name ? NAMN_BONUS : 0) + (b.wiki ? WIKI_BONUS : 0);
+        + (b.name ? NAMN_BONUS : 0) + (b.wiki ? WIKI_BONUS : 0)
+        + (pärlor.has(b.id) ? PÄRL_BONUS : 0);
       return vb - va;
     });
 
