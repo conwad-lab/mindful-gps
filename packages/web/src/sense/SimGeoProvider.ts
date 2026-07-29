@@ -157,6 +157,8 @@ export class SimGeoProvider implements GeoProvider {
   /** Callbacken som tar emot fixar. Sparad så takten kan bytas utan att tappa mottagaren. */
   #cb: ((f: Fix) => void) | undefined;
   #alongM = 0;
+  /** Väggklockan vid förra ticket. Strypta flikar mäts, inte räknas — se #startaIntervall. */
+  #väggFörra = 0;
   /** Simulatorns egen tidsaxel. Går en simulerad sekund per fix, oavsett väggklockan. */
   #t = 0;
   /** Positionsfelet just nu, i meter öster/norr. Ett AR(1)-brus, inte en tärning per tick. */
@@ -218,13 +220,30 @@ export class SimGeoProvider implements GeoProvider {
   }
 
   /** Själva tickandet. Bruten ur `start` så takten kan bytas: klipp och starta om. */
+  /**
+   * ⚠️ Väggklockan mäts, ticken räknas inte.
+   *
+   * Chrome samlar en dold fliks timers till EN väckning per minut när sidan varit tyst
+   * i fem minuter (intensive throttling) — och en virtuell resa har tysta luckor varje
+   * gång en berättelse komponeras. En simulator som räknade tick frös då till ~en
+   * simulerad sekund per verklig minut, mitt i resan, utan att något såg fel ut (MÄTT:
+   * Cambrils → Altafulla stod still på "21 km kvar" med ett startat intervall som
+   * aldrig fyrade). Genom att räkna FÖRFLUTEN VÄGGTID per väckning tar en strypt flik
+   * igen hela sträckan i klumpar i stället för att stå still — och en synlig flik
+   * märker ingen skillnad alls.
+   */
   #startaIntervall(): void {
     const cb = this.#cb;
     if (cb === undefined) return;
 
+    this.#väggFörra = Date.now();
     this.#timer = setInterval(() => {
-      this.#t += STEP_MS;
-      this.#alongM += this.#speedMs * (STEP_MS / 1000);
+      const nu = Date.now();
+      const steg = Math.max(1, Math.round((nu - this.#väggFörra) / this.#tickMs));
+      this.#väggFörra = nu;
+
+      this.#t += STEP_MS * steg;
+      this.#alongM += this.#speedMs * steg * (STEP_MS / 1000);
 
       if (this.#alongM >= this.lengthM) {
         if (!this.#loop) {
