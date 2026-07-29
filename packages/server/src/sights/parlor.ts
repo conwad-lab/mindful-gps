@@ -36,18 +36,30 @@ const RYKTES_SORTER = new Set(['kafé', 'krog', 'gårdsbutik', 'galleri', 'ving�
 const PRÖVAS_MAX = 25;
 
 /** Högst så många pärlor per anrop. Är allt en pärla är inget det. */
-const PÄRLOR_MAX = 6;
+const PÄRLOR_MAX = 4;
 
+/**
+ * Promptens ribba är medvetet HÖG. Första kalibreringen (Tarragona-kusten, 2026-07-29)
+ * släppte igenom 10 av 100 — däribland en pizzeria och en hamburgerbar. Operatörens
+ * dom: för snällt. Ribban är "folk kör omvägar dit", inte "bra betyg på Tripadvisor" —
+ * varenda fungerande krog har bra betyg någonstans, och en spanare som pekar ut var
+ * tionde ställe är ingen spanare.
+ */
 const SYSTEM = [
-  'Du är en lokalkännare som skiljer älskade ställen från vanliga.',
+  'Du är en kräsen lokalkännare som skiljer VALLFÄRDSSTÄLLEN från bra ställen.',
   'Du får en lista med matställen och butiker längs en bilväg. Sök på webben efter dem.',
-  'Peka ut de som är SÄRSKILT omtyckta, omskrivna eller speciella — ställen folk kör',
-  'omvägar för: kultkaféer, legendariska krogar, gårdsbutiker med rykte.',
+  '',
+  'En pärla är ett ställe folk KÖR OMVÄGAR för: omskrivet i guider eller press,',
+  'omtalat långt utanför sin egen by, med något man inte hittar någon annanstans.',
   '',
   'Regler:',
   `- Svara ENDAST med en JSON-array av exakta namn ur listan. Högst ${PÄRLOR_MAX}.`,
-  '- Ta bara med ställen du faktiskt hittar beröm om. Hittar du inget: svara [].',
-  '- Ett vanligt fungerande ställe är INTE en pärla. Hellre tom lista än artighet.',
+  '- JA om du hittar ett omnämnande i en etablerad guide eller press (Michelin,',
+  '  regionala matguider, tidningsreportage) eller ett tydligt eget rykte.',
+  '- NEJ på enbart bra betyg på Tripadvisor/Google — det har varenda fungerande ställe.',
+  '- NEJ på pizzerior, hamburgerbarer och brunchkedjor utan bevisad vallfart.',
+  '- Typiskt hittar du 1-2 pärlor av 25; på ödsliga sträckor ingen alls.',
+  '- Hittar du inga belägg: svara []. En tom lista är ett hedervärt svar.',
 ].join('\n');
 
 export interface PärlKandidat {
