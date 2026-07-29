@@ -215,7 +215,16 @@ tröskeln och väljs aldrig. Fork-sorterna i datapipelinen: kafé, galleri,
 badplats, trädgård, vingård och gårdsbutik (kafé/badplats/trädgård/gårdsbutik
 kräver NAMN i OSM — namnlösa är mackkiosker, sanddyner och villarabatter;
 vingård via `craft=winery`, galleri via `tourism=gallery`). Kräver det utökade
-sevärdhetsfiltret ovan + omseedning. Max **6** curiosa per resa, **minst 2 km
+sevärdhetsfiltret ovan + omseedning.
+
+Rankingen bär tre signaler, i stigande styrka: sortens smakvikt, namn (+0,15 —
+en plats utan namn går inte att berätta om) och **wikipedia-/wikidata-tagg i
+OSM (+0,35)** — den billigaste märkvärdighetssignal som finns: någon har
+intygat att platsen förtjänar en artikel. Utan wiki-bonusen dominerade
+namnade bykrogar ("lite tråkiga ställen", operatören efter Lund → Åhus);
+med den slår en wiki-taggad borg varje bykrog. Dessutom **högst 2 av samma
+sort per resa** — fyra kaféer är en fikarunda, inte en resa. Flaggan lagras
+i `sight.wiki` och kräver omseedning när den introduceras. Max **6** curiosa per resa, **minst 2 km
 mellanrum**, och namn ger +0,15 i rankingen — på en virtuell resa ser man ingen
 vy, bara berättelsen, så en namnlös plats är nästan värdelös. Mätt på Lund →
 Simrishamn: 3 namngivna utsikter + 3 namngivna kaféer (bl.a. Mandelmanns

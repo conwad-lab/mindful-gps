@@ -121,8 +121,12 @@ CREATE TABLE IF NOT EXISTS sight (
   tile_h3_6   bigint NOT NULL REFERENCES road_tile(h3_6) ON DELETE CASCADE,
   kind        text NOT NULL,
   name        text NOT NULL DEFAULT '',
-  at          geometry(Point, 4326) NOT NULL         -- ytor reduceras till sin mittpunkt
+  at          geometry(Point, 4326) NOT NULL,        -- ytor reduceras till sin mittpunkt
+  wiki        boolean NOT NULL DEFAULT false         -- har wikipedia-/wikidata-tagg i OSM
 );
+
+-- Befintliga databaser saknar kolumnen; migrate() kör hela filen idempotent.
+ALTER TABLE sight ADD COLUMN IF NOT EXISTS wiki boolean NOT NULL DEFAULT false;
 
 CREATE INDEX IF NOT EXISTS sight_tile_idx ON sight (tile_h3_6);
 CREATE INDEX IF NOT EXISTS sight_at_idx ON sight USING GIST (at);

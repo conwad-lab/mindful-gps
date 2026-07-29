@@ -54,11 +54,11 @@ export async function writeSights(
   if (rows.length === 0) return;
 
   await tx.query(
-    `INSERT INTO sight (id, tile_h3_6, kind, name, at)
-     SELECT r.id, r.tile, r.kind, r.name, ST_SetSRID(ST_MakePoint(r.lon, r.lat), 4326)
+    `INSERT INTO sight (id, tile_h3_6, kind, name, at, wiki)
+     SELECT r.id, r.tile, r.kind, r.name, ST_SetSRID(ST_MakePoint(r.lon, r.lat), 4326), r.wiki
        FROM unnest($1::bigint[], $2::bigint[], $3::text[], $4::text[],
-                   $5::double precision[], $6::double precision[])
-              AS r(id, tile, kind, name, lon, lat)
+                   $5::double precision[], $6::double precision[], $7::boolean[])
+              AS r(id, tile, kind, name, lon, lat, wiki)
      -- Samma sevärdhet kan ligga i två hämtningsrutors överlapp. Först till kvarn.
      ON CONFLICT (id) DO NOTHING`,
     [
@@ -68,6 +68,7 @@ export async function writeSights(
       rows.map((r) => r.s.name),
       rows.map((r) => r.s.at[0]),
       rows.map((r) => r.s.at[1]),
+      rows.map((r) => r.s.wiki ?? false),
     ],
   );
 }

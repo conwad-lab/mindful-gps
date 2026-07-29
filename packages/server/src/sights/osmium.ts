@@ -29,7 +29,7 @@ import type { LngLat, Sight } from '@mindful/core';
 import { bboxOf, tileBoundary } from '../roadindex/tiles.js';
 import { frånRoten } from '../rot.js';
 import type { Bbox } from '../roadindex/tiles.js';
-import { namnAv, sortAv } from './taggar.js';
+import { namnAv, sortAv, ärMärkvärdig } from './taggar.js';
 
 /**
  * Var sevärdheterna kommer ifrån. Ett interface av samma skäl som `WaySource`: indexet
@@ -173,7 +173,7 @@ export async function* sightsInBbox(pbfPath: string, bbox: Bbox): AsyncGenerator
       const id = idAv(rawId);
       if (at === null || id === null) continue;
 
-      yield { id, kind, name: namnAv(taggar), at };
+      yield { id, kind, name: namnAv(taggar), at, wiki: ärMärkvärdig(taggar) };
     }
 
     await closed;

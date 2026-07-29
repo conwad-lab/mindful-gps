@@ -66,6 +66,19 @@ const NAMNKRÄVANDE: readonly Regel[] = [
   { nyckel: 'shop',    värden: ['farm'],   sort: 'gårdsbutik' },
 ];
 
+/**
+ * Märkvärdig = har en wikipedia- eller wikidata-tagg i OSM.
+ *
+ * Signalen är gles men träffsäker: den som taggat ett objekt mot Wikipedia har i
+ * praktiken intygat att det är en RIKTIG sevärdhet, inte bara en punkt med namn.
+ * Skarpt behov (operatörens ord 2026-07-29): "lite tråkiga ställen dyker upp —
+ * jag vill ha riktiga sevärdheter." Namn skiljer mackkiosk från kafé; wiki skiljer
+ * kafé från kloster.
+ */
+export function ärMärkvärdig(t: Taggar): boolean {
+  return t['wikipedia'] !== undefined || t['wikidata'] !== undefined;
+}
+
 /** `null` = ingen sevärdhet. Det normala svaret. */
 export function sortAv(t: Taggar): SightKind | null {
   for (const r of REGLER) {

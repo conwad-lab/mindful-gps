@@ -86,6 +86,12 @@ export interface Sight {
   /** Kan vara tom. En namnlös runsten är fortfarande en runsten. */
   readonly name: string;
   readonly at: LngLat;
+  /**
+   * Har OSM-objektet en wikipedia-/wikidata-tagg? Den billigaste märkvärdighets-
+   * signal som finns: någon har tyckt att platsen förtjänar en artikel. Valfri —
+   * bara datapipelinen och den virtuella resans urval bryr sig.
+   */
+  readonly wiki?: boolean;
 }
 
 /**

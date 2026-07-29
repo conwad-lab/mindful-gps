@@ -245,9 +245,10 @@ export function sightStoryRoutes(app: FastifyInstance, opts: { deps: { pool: Poo
 
     const res = await pool.query<{
       id: string; kind: string; name: string; lon: number; lat: number; along_m: number;
+      wiki: boolean;
     }>(
       `WITH linje AS (SELECT ST_GeomFromText($1, 4326) AS g)
-       SELECT s.id, s.kind, s.name, ST_X(s.at) AS lon, ST_Y(s.at) AS lat,
+       SELECT s.id, s.kind, s.name, s.wiki, ST_X(s.at) AS lon, ST_Y(s.at) AS lat,
               ST_LineLocatePoint(linje.g, s.at) * ST_Length(linje.g::geography) AS along_m
          FROM sight s, linje
         WHERE s.kind = ANY($2::text[])
@@ -264,10 +265,20 @@ export function sightStoryRoutes(app: FastifyInstance, opts: { deps: { pool: Poo
     // mycket om just den här platsen". MÄTT före bonusen: 2 av 6 stopp på Lund →
     // Simrishamn var namnlösa utsikter. +0,15 låter ett namngivet kafé (1,05) slå en
     // namnlös utsikt (1,00), medan en namngiven utsikt (1,15) fortfarande toppar allt.
+    //
+    // Och wiki väger TYNGST. Namn skiljer mackkiosk från kafé; en wikipedia-/wikidata-
+    // tagg skiljer kafé från kloster — någon har intygat att platsen förtjänar en
+    // artikel. Skarpt behov (operatören, efter Lund → Åhus 2026-07-29): "lite tråkiga
+    // ställen dyker upp — jag vill ha riktiga sevärdheter." +0,35 låter en wiki-taggad
+    // borg (0,75+0,15+0,35 = 1,25) slå varenda bykrog (1,05), medan en wiki-taggad
+    // utsikt (1,50) fortfarande toppar allt.
     const NAMN_BONUS = 0.15;
+    const WIKI_BONUS = 0.35;
     const rankade = [...res.rows].sort((a, b) => {
-      const va = (RESA_VIKT[a.kind as SightKind] ?? 0) + (a.name ? NAMN_BONUS : 0);
-      const vb = (RESA_VIKT[b.kind as SightKind] ?? 0) + (b.name ? NAMN_BONUS : 0);
+      const va = (RESA_VIKT[a.kind as SightKind] ?? 0)
+        + (a.name ? NAMN_BONUS : 0) + (a.wiki ? WIKI_BONUS : 0);
+      const vb = (RESA_VIKT[b.kind as SightKind] ?? 0)
+        + (b.name ? NAMN_BONUS : 0) + (b.wiki ? WIKI_BONUS : 0);
       return vb - va;
     });
 
@@ -276,12 +287,19 @@ export function sightStoryRoutes(app: FastifyInstance, opts: { deps: { pool: Poo
     // och sedan tystnad i fem mil. En resa ska andas jämnt; ett stopp var annan
     // kilometer är den glesaste täthet som fortfarande känns som en resa och inte som
     // en lista.
+    // Och blandat, inte enahanda: högst 2 av samma sort per resa. MÄTT på Lund → Åhus
+    // utan spärren: 3 av 6 stopp var kaféer, och operatörens dom var "tråkigt". Fyra
+    // kaféer är en fikarunda; två kaféer, ett slott och en utsikt är en resa.
     const MELLANRUM_M = 2000;
+    const MAX_PER_SORT = 2;
+    const perSort = new Map<string, number>();
     const valda: typeof rankade = [];
     for (const r of rankade) {
       if (valda.length >= max) break;
+      if ((perSort.get(r.kind) ?? 0) >= MAX_PER_SORT) continue;
       if (valda.some((v) => Math.abs(v.along_m - r.along_m) < MELLANRUM_M)) continue;
       valda.push(r);
+      perSort.set(r.kind, (perSort.get(r.kind) ?? 0) + 1);
     }
 
     // Tillbaka till VÄGENS ordning: en resa passerar dem i den ordning de ligger, inte
