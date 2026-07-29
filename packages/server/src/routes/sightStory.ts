@@ -97,6 +97,10 @@ const RESA_VIKT: Readonly<Record<SightKind, number>> = {
   badplats: 0.80,
   gårdsbutik: 0.80,
   museum: 0.80,
+  // Under kafé med flit: varenda pizzeria är en krog, och utan wiki-tagg ska en krog
+  // inte slå ett kafé. De älskade (Café Boule-klassen) bärs upp av namn + gles konkurrens
+  // på landsbygdssträckor — och de riktigt legendariska av wiki-taggen.
+  krog: 0.75,
   borg: 0.75,
   fyr: 0.75,
   naturreservat: 0.70,
@@ -252,10 +256,22 @@ export function sightStoryRoutes(app: FastifyInstance, opts: { deps: { pool: Poo
               ST_LineLocatePoint(linje.g, s.at) * ST_Length(linje.g::geography) AS along_m
          FROM sight s, linje
         WHERE s.kind = ANY($2::text[])
-          AND ST_DWithin(
-                s.at::geography,
-                ST_Simplify(linje.g, 0.0008)::geography,
-                $3)`,
+          AND (
+            ST_DWithin(
+              s.at::geography,
+              ST_Simplify(linje.g, 0.0008)::geography,
+              $3)
+            -- Värt-en-avstickare-regeln: wiki-taggade platser fångas i en TREDUBBEL
+            -- korridor. Skarpt fall: Forsakar (Skånes vattenfallsravin, wiki-taggad)
+            -- ligger 1,5 km från väg 19 genom Degeberga — utanför 1200 m, för alltid
+            -- osynlig för varje resa som passerar. En bykrog 1,5 km bort är inte värd
+            -- omvägen; ett vattenfall med egen artikel är. (Samma designidé som
+            -- destination dining-undantaget i Alamar-geofencen.)
+            OR (s.wiki AND ST_DWithin(
+              s.at::geography,
+              ST_Simplify(linje.g, 0.0008)::geography,
+              $3 * 2.5))
+          )`,
       [wkt, RESA_SORTER as unknown as string[], radie],
     );
 

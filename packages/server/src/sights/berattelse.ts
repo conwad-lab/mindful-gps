@@ -68,6 +68,7 @@ const SORT_SV: Record<SightKind, string> = {
   sevärdhet: 'sevärdhet', konst: 'offentlig konst', minnesmärke: 'minnesmärke',
   kafé: 'kafé', galleri: 'konstgalleri eller utställningslokal', badplats: 'badplats',
   trädgård: 'trädgård eller park', vingård: 'vingård', gårdsbutik: 'gårdsbutik',
+  krog: 'restaurang eller krog',
 };
 
 export interface Berättelse {

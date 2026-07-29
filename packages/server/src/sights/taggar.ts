@@ -60,7 +60,10 @@ function ärSevärdKyrka(t: Taggar): boolean {
  * Namnet är den billigaste kvalitetssignal OSM har.
  */
 const NAMNKRÄVANDE: readonly Regel[] = [
-  { nyckel: 'amenity', värden: ['cafe'],   sort: 'kafé' },
+  { nyckel: 'amenity', värden: ['cafe'],       sort: 'kafé' },
+  // Skarpt fall: CAFÉ BOULE BRÄNNERIET MAGLEHEM är amenity=restaurant + cuisine=pizza.
+  // Österlens älskade matställen taggas hur som helst — kafé-filtret ensamt missar dem.
+  { nyckel: 'amenity', värden: ['restaurant'], sort: 'krog' },
   { nyckel: 'natural', värden: ['beach'],  sort: 'badplats' },
   { nyckel: 'leisure', värden: ['garden'], sort: 'trädgård' },
   { nyckel: 'shop',    värden: ['farm'],   sort: 'gårdsbutik' },

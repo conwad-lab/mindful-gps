@@ -96,7 +96,7 @@ osmium tags-filter sweden-latest.osm.pbf \
 osmium tags-filter sweden-latest.osm.pbf \
   nwr/historic nwr/tourism=viewpoint,attraction,museum,artwork,gallery \
   nwr/natural=waterfall,beach nwr/leisure=nature_reserve,garden \
-  nwr/man_made=lighthouse nwr/amenity=place_of_worship,cafe \
+  nwr/man_made=lighthouse nwr/amenity=place_of_worship,cafe,restaurant \
   nwr/craft=winery nwr/shop=farm \
   -o ../vagindex/sevardheter.osm.pbf
 cd ../..

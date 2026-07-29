@@ -41,7 +41,7 @@ import type { LngLat } from './types.js';
 export type SightKind =
   | 'utsikt' | 'vattenfall' | 'runsten' | 'fornlämning' | 'borg' | 'fyr'
   | 'naturreservat' | 'kyrka' | 'museum' | 'sevärdhet' | 'konst' | 'minnesmärke'
-  | 'kafé' | 'galleri' | 'badplats' | 'trädgård' | 'vingård' | 'gårdsbutik';
+  | 'kafé' | 'galleri' | 'badplats' | 'trädgård' | 'vingård' | 'gårdsbutik' | 'krog';
 
 /**
  * Hur mycket en sevärdhet är värd att KÖRA FÖRBI. Inte hur intressant den är att besöka.
@@ -78,6 +78,7 @@ export const SIGHT_WEIGHT: Readonly<Record<SightKind, number>> = {
   trädgård: 0.30,
   vingård: 0.35,
   gårdsbutik: 0.30,
+  krog: 0.30,
 };
 
 export interface Sight {
